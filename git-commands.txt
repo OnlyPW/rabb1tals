@@ -1,0 +1,81 @@
+# Git Commands Cheat Sheet
+
+git add .
+# Add all changes in the current directory to the staging area.
+
+git commit -m "commit message"
+# Commit the staged changes with a message.
+
+git push
+# Push the committed changes to the remote repository.
+
+
+
+git pull
+# Fetch and merge changes from the remote repository.
+
+
+
+## Branching
+git branch
+# List all branches in the repository.
+
+git branch <branch-name>
+# Create a new branch.
+
+git checkout <branch-name>
+# Switch to a different branch.
+
+git merge <branch-name>
+# Merge the specified branch into the current branch.
+
+## Viewing History
+git log
+# Show the commit history.
+
+git log --oneline
+# Show a simplified commit history.
+
+## Undoing Changes
+git reset <file>
+# Unstage a file.
+
+git reset --hard
+# Reset the working directory and staging area to the last commit.
+
+git revert <commit>
+# Create a new commit that undoes the changes from a specified commit.
+
+## Remote Repositories
+git remote -v
+# List remote repositories.
+
+git remote add <name> <url>
+# Add a new remote repository.
+
+git fetch
+# Download objects and refs from another repository.
+
+## Stashing
+git stash
+# Save changes in a dirty working directory.
+
+git stash apply
+# Reapply the stashed changes.
+
+## Tagging
+git tag
+# List all tags.
+
+git tag <tag-name>
+# Create a new tag.
+
+git push origin <tag-name>
+# Push a tag to the remote repository.
+
+## Configuration
+git config --global user.name "Your Name"
+# Set the global username for Git.
+
+git config --global user.email "your.email@example.com"
+# Set the global email for Git. 

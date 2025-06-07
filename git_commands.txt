@@ -1,0 +1,32 @@
+to restore to current GitHub repo:
+git fetch origin
+git reset --hard origin/main
+
+
+
+git add .
+
+git commit -m "added prc-20 support"
+
+git push origin main --force
+
+Prompt:
+
+I'm having trouble pushing to my GitHub repository. I get "Repository not found" and "Could not open a connection to your authentication agent" errors. Here's what I've done:
+Verified the remote URL with git remote -v.
+Tried adding my SSH key with ssh-add ~/.ssh/deploy_key but got an error.
+Checked my SSH connection with ssh -T git@github.com and it says I'm authenticated.
+How can I fix these issues to successfully push my changes?
+
+---
+
+Steps to Resolve:
+Start the SSH Agent: eval "$(ssh-agent -s)"
+Add the SSH Key:   ssh-add ~/.ssh/deploy_key
+
+Verify Remote URL:
+Ensure the remote URL is correct and uses SSH: git remote set-url origin git@github.com:martinseeger2002/plugzWallet2.git
+Test SSH Connection:  ssh -T git@github.com
+Push Changes:   git push origin main --force
+
+This should help you quickly identify and resolve the issues.

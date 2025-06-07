@@ -1,0 +1,69 @@
+[
+    {
+      "ticker": "PEP",
+      "tx_url": "https://pepeblocks.com/tx/",
+      "address_txs_url": "https://pepeblocks.com/api/v2/address/{address}",
+      "address_txs_url_alt": "https://pepecoinexplorer.com/api/v1/address/{address}/"
+    },
+    {
+      "ticker": "DEV",
+      "tx_url": "https://dev-mempool.space/tx/",
+      "address_txs_url": "https://dev-mempool.space/api/v1/address/{address}/txs"
+    },
+    {
+      "ticker": "FLOP",
+      "tx_url": "https://explorer.flopcoin.net/tx/",
+      "address_txs_url": "https://explorer.flopcoin.net/ext/getaddresstxs/{address}/0/50"
+    },
+    {
+      "ticker": "LKY",
+      "tx_url": "https://luckyscan.org/tx/",
+      "address_txs_url": "https://luckyscan.org/api/address/{address}/txs"
+    },
+    {
+      "ticker": "BTC",
+      "tx_url": "https://chain.so/tx/BTC/"
+    },
+    {
+      "ticker": "DOGE",
+      "tx_url": "https://chain.so/tx/DOGE/"
+    },
+    {
+      "ticker": "XBT",
+      "tx_url": "https://xbt-explorer.dedoo.xyz/tx/",
+      "address_txs_url": "https://xbt-explorer.s3na.xyz/ext/getaddresstxs/{address}/0/50"
+    },
+    {
+      "ticker": "JKC",
+      "tx_url": "https://explorer.junk-coin.com/tx/"
+    },
+    {
+      "ticker": "SHIC",
+      "tx_url": "https://explorer.shibacoinshic.org/tx/",
+      "address_txs_url": "https://explorer.shibacoinshic.org/ext/getaddresstxs/{address}/0/50"
+    },
+    {
+      "ticker": "DGB",
+      "tx_url": "https://blockchair.com/digibyte/transaction/",
+      "address_txs_url": "https://www.coinexplorer.net/api/v1/DGB/address/transactions?address={address}"
+    },
+    {
+      "ticker": "B1T",
+      "tx_url": "https://b1texplorer.com/tx/",
+      "address_txs_url": "https://b1texplorer.com/ext/getaddresstxs/{address}/0/50"
+    },
+    {
+      "ticker": "GEMMA",
+      "tx_url": "https://explorer.gemmacoin.io/tx/",
+      "address_txs_url": "https://explorer.gemmacoin.io/ext/getaddresstxs/{address}/0/50"
+    },
+    {
+      "ticker": "LTC",
+      "tx_url": "https://chain.so/tx/LTC/"
+    },
+    {
+      "ticker": "BONC",
+      "tx_url": "https://explorer.bonkscoin.io/tx/",
+      "address_txs_url": "https://explorer.bonkscoin.io/ext/getaddresstxs/{address}/0/50"
+    }
+  ]

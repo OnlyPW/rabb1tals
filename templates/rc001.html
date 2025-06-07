@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC001 Collections Viewer</title>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <div class="frame">
+    <div class="container">
+      <h1>RC001 Collections Viewer</h1>
+      <div class="collections-list styled-text" style="background: #18181b; border-radius: 16px;">
+        <h2>Collections</h2>
+        <div id="collections-container"></div>
+      </div>
+      <div class="details-section styled-text" id="details-section" style="display: none; background: #18181b; border-radius: 16px;">
+        <h2>Collection Details</h2>
+        <h3 id="collection-name"></h3>
+        <h4>Collection Information</h4>
+        <div id="collection-info"></div>
+        <h4>Serial Number Ranges</h4>
+        <table id="ranges-table">
+          <thead>
+            <tr>
+              <th>Range Index</th>
+              <th>Range Value</th>
+            </tr>
+          </thead>
+          <tbody id="ranges-tbody"></tbody>
+        </table>
+        <h4>Minted Items</h4>
+        <table id="items-table">
+          <thead>
+            <tr>
+              <th>Item Number</th>
+              <th>Serial Number</th>
+              <th>Inscription ID</th>
+              <th>Status</th>
+              <th>Address</th>
+              <th>Block Height</th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+    <script>
+        let allCollections = []; // Global cache for collections
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCollections();
+
+            async function loadCollections() {
+                const container = document.getElementById('collections-container');
+                container.innerHTML = '<p class="loading">Loading collections...</p>';
+
+                try {
+                    const response = await fetch('/rc001/collections', {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    const rawText = await response.text();
+                    console.log('Raw response from /collections:', rawText);
+
+                    const data = JSON.parse(rawText);
+                    if (response.ok && data.status === 'success') {
+                        allCollections = Object.entries(data.collections).map(([name, details]) => ({ name, details }));
+                        container.innerHTML = allCollections.length === 0 
+                            ? '<p>No collections found.</p>'
+                            : allCollections.map(c => `
+                                <div class="collection-item" 
+                                     onclick="loadCollectionDetails('${c.details.coin_ticker}', '${c.name}')">
+                                    ${c.details.coin_ticker}: ${c.name}<br>
+                                    <small>Minted: ${c.details.minted}/${c.details.max_supply} (${c.details.percent_minted}%)</small>
+                                </div>
+                            `).join('');
+                    } else {
+                        container.innerHTML = `<p class="error">Error: ${data.message || 'Unknown server error'}</p>`;
+                    }
+                } catch (error) {
+                    container.innerHTML = `<p class="error">Error loading collections: ${error.message}</p>`;
+                    console.error('Fetch error for collections:', error);
+                }
+            }
+        });
+
+        function sanitize_filename(name) {
+            return name.replace(/[^\w\-]/g, '');
+        }
+
+        async function loadCollectionDetails(coinTicker, collectionName) {
+            document.getElementById('details-section').style.display = 'block';
+            document.getElementById('collection-name').textContent = `${coinTicker}: ${collectionName}`;
+
+            // Load items
+            const itemsTbody = document.getElementById('items-tbody');
+            itemsTbody.innerHTML = '<tr><td colspan="6" class="loading">Loading items...</td></tr>';
+            
+            try {
+                const url = `/rc001/collection/${encodeURIComponent(coinTicker)}/${encodeURIComponent(sanitize_filename(collectionName))}`;
+                console.log('Fetching items from URL:', url);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                const rawText = await response.text();
+                console.log('Raw response for items:', rawText, 'Status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${rawText}`);
+                }
+                
+                const data = JSON.parse(rawText);
+                if (data.status === 'success') {
+                    const items = data.collection;
+                    itemsTbody.innerHTML = items.length === 0 
+                        ? '<tr><td colspan="6">No items found.</td></tr>'
+                        : items.map(item => `
+                            <tr>
+                                <td>${item.sequence_number || 'N/A'}</td>
+                                <td>${item.sn || 'N/A'}</td>
+                                <td>${item.inscription_id || 'Pending'}</td>
+                                <td>${item.inscription_status || 'Pending'}</td>
+                                <td>${item.inscription_address || 'N/A'}</td>
+                                <td>${item.created_at || 'N/A'}</td>
+                            </tr>
+                        `).join('');
+                    
+                    // Initial sort by item number (sequence number)
+                    sortTable(document.getElementById('items-table'), 0, true);
+
+                    addSortListeners('items-table', ['sequence_number', 'sn', 'inscription_id', 'inscription_status', 'inscription_address', 'created_at']);
+                } else {
+                    itemsTbody.innerHTML = `<tr><td colspan="6" class="error">Error: ${data.message || 'Unknown server error'}</td></tr>`;
+                }
+            } catch (error) {
+                itemsTbody.innerHTML = `<tr><td colspan="6" class="error">Error loading items: ${error.message}</td></tr>`;
+                console.error('Fetch error for items:', error);
+            }
+
+            // Load collection info and serial ranges
+            const infoContainer = document.getElementById('collection-info');
+            infoContainer.innerHTML = '<p class="loading">Loading collection information...</p>';
+            const rangesTbody = document.getElementById('ranges-tbody');
+            rangesTbody.innerHTML = '<tr><td colspan="2" class="loading">Loading serial ranges...</td></tr>';
+
+            const collection = allCollections.find(c => c.details.coin_ticker === coinTicker && c.name === collectionName);
+            if (collection) {
+                infoContainer.innerHTML = `
+                    <p><strong>Coin Ticker:</strong> ${collection.details.coin_ticker}</p>
+                    <p><strong>Mint Address:</strong> ${collection.details.mint_address}</p>
+                    <p><strong>Deploy Address:</strong> ${collection.details.deploy_address}</p>
+                    <p><strong>Mint Price:</strong> ${collection.details.mint_price}</p>
+                    <p><strong>Parent Inscription ID:</strong> ${collection.details.parent_inscription_id}</p>
+                    <p><strong>Emblem Inscription ID:</strong> ${collection.details.emblem_inscription_id}</p>
+                    <p><strong>Website:</strong> ${collection.details.website || 'N/A'}</p>
+                    <p><strong>Deploy TXID:</strong> ${collection.details.deploy_txid}</p>
+                    <p><strong>Max Supply:</strong> ${collection.details.max_supply}</p>
+                    <p><strong>Minted:</strong> ${collection.details.minted}</p>
+                    <p><strong>Left to Mint:</strong> ${collection.details.left_to_mint}</p>
+                    <p><strong>Percent Minted:</strong> ${collection.details.percent_minted}%</p>
+                `;
+
+                const ranges = Object.entries(collection.details)
+                    .filter(([key]) => key.startsWith('sn_index_'))
+                    .map(([key, value]) => ({
+                        index: parseInt(key.replace('sn_index_', '')),
+                        value: value
+                    }))
+                    .sort((a, b) => a.index - b.index);
+                
+                rangesTbody.innerHTML = ranges.length === 0 
+                    ? '<tr><td colspan="2">No serial ranges found.</td></tr>'
+                    : ranges.map(range => `
+                        <tr>
+                            <td>${range.index}</td>
+                            <td>${range.value}</td>
+                        </tr>
+                    `).join('');
+                addSortListeners('ranges-table', ['index', 'value']);
+            } else {
+                infoContainer.innerHTML = '<p class="error">Collection not found in cached data</p>';
+                rangesTbody.innerHTML = '<tr><td colspan="2" class="error">Collection not found</td></tr>';
+            }
+        }
+
+        function addSortListeners(tableId, columns) {
+            const table = document.getElementById(tableId);
+            const headers = table.querySelectorAll('th');
+            headers.forEach((header, index) => {
+                header.addEventListener('click', () => {
+                    const isNumericColumn = columns[index] === 'sequence_number';
+                    sortTable(table, index, isNumericColumn);
+                });
+            });
+        }
+
+        function sortTable(table, columnIndex, isNumeric) {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                const aText = a.children[columnIndex].textContent.trim();
+                const bText = b.children[columnIndex].textContent.trim();
+
+                if (isNumeric) {
+                    return parseInt(aText, 10) - parseInt(bText, 10);
+                } else {
+                    return aText.localeCompare(bText);
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>

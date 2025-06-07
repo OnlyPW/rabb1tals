@@ -1,0 +1,707 @@
+/**********************************************************
+ * Utility: Debounce function to prevent multiple calls
+ **********************************************************/
+function debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
+
+/**********************************************************
+ * Utility: Format time since a given timestamp
+ **********************************************************/
+function formatTimeSince(timestamp) {
+    const currentTime = Date.now();
+    const txTime = new Date(timestamp * 1000); // timestamp expected in seconds
+    const timeSince = Math.floor((currentTime - txTime) / 1000);
+
+    if (timeSince < 60) {
+        return `${timeSince} seconds ago`;
+    } else if (timeSince < 3600) {
+        return `${Math.floor(timeSince / 60)} mins ago`;
+    } else if (timeSince < 86400) {
+        return `${Math.floor(timeSince / 3600)} hours ago`;
+    } else {
+        return `${Math.floor(timeSince / 86400)} days ago`;
+    }
+}
+
+/**********************************************************
+ * Utility: Create a DOM element to display a transaction
+ **********************************************************/
+function createTransactionElement(netAmount, timestamp, txid, confirmations, ticker) {
+    const txElement = document.createElement('div');
+    txElement.className = 'transaction transaction-card tx-clickable';
+    txElement.dataset.txid = txid;
+    txElement.tabIndex = 0;
+    txElement.setAttribute('role', 'button');
+    txElement.setAttribute('aria-label', 'View transaction details');
+    // Ensure pointer events and cursor
+    txElement.style.pointerEvents = 'auto';
+    txElement.style.cursor = 'pointer';
+
+    const absAmount = Math.abs(netAmount).toFixed(8);
+    const timeSinceText = formatTimeSince(timestamp);
+    const fullDate = new Date(timestamp * 1000).toLocaleString();
+    const shortTxid = `${txid.substring(0, 6)}...${txid.substring(txid.length - 6)}`;
+    let direction, color, icon;
+    if (netAmount > 0) {
+        direction = 'Received';
+        color = '#44ff44';
+        icon = '⬇️';
+    } else if (netAmount < 0) {
+        direction = 'Sent';
+        color = '#ff4444';
+        icon = '⬆️';
+    } else {
+        direction = 'Self';
+        color = '#888888';
+        icon = '🔄';
+    }
+    // Card content
+    txElement.innerHTML = `
+      <div class="tx-row">
+        <span class="tx-icon" style="color:${color}">${icon}</span>
+        <span class="tx-amount" style="color:${color}">${absAmount}</span>
+        <span class="tx-direction">${direction}</span>
+      </div>
+      <div class="tx-row tx-meta">
+        <span class="tx-time">${timeSinceText}</span>
+        <span class="tx-conf ${confirmations > 0 ? 'confirmed' : 'unconfirmed'}">${confirmations > 0 ? confirmations + ' conf' : 'Unconfirmed'}</span>
+      </div>
+      <div class="tx-row tx-id-row">
+        <span class="txid-short">${shortTxid}</span>
+        <button class="txid-copy-btn" title="Copy TxID">📋</button>
+      </div>
+    `;
+    // Copy button logic
+    const copyBtn = txElement.querySelector('.txid-copy-btn');
+    copyBtn.title = 'Copy TxID';
+    copyBtn.setAttribute('aria-label', 'Copy transaction ID');
+    copyBtn.onclick = (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(txid).then(() => {
+        copyBtn.textContent = '✅';
+        setTimeout(() => { copyBtn.textContent = '📋'; }, 1200);
+      });
+    };
+    // Modal on click (card, not copy button)
+    txElement.onclick = async (e) => {
+        if (window.txModalOpen) return;
+        window.txModalOpen = true;
+        if (e.target === copyBtn) return;
+        console.log('Transaction clicked', txid); // Debug log
+        try {
+            // Create overlay
+            const overlay = document.createElement('div');
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.tabIndex = -1;
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.background = 'rgba(0,0,0,0.85)';
+            overlay.style.zIndex = '9999';
+            overlay.style.display = 'grid';
+            overlay.style.placeItems = 'center';
+            overlay.style.overflowY = 'auto';
+            overlay.style.padding = '0';
+            overlay.style.margin = '0';
+            overlay.style.boxSizing = 'border-box';
+            // Trap focus
+            overlay.focus();
+            // Esc key closes modal
+            const escListener = (e) => { if (e.key === 'Escape') { document.body.removeChild(overlay); window.removeEventListener('keydown', escListener); } };
+            window.addEventListener('keydown', escListener);
+
+            // Create modal
+            const dialog = document.createElement('div');
+            dialog.className = 'dialog tx-dialog';
+            dialog.setAttribute('role', 'document');
+            dialog.style.background = '#18181b';
+            dialog.style.borderRadius = '22px';
+            dialog.style.boxShadow = '0 4px 32px rgba(0,0,0,0.32)';
+            dialog.style.maxWidth = '420px';
+            dialog.style.width = '96vw';
+            dialog.style.padding = '32px 18px 22px 18px';
+            dialog.style.position = 'relative';
+            dialog.style.fontFamily = "'Space Grotesk','Poppins',sans-serif";
+            dialog.style.color = '#fff';
+            dialog.style.textAlign = 'center';
+            dialog.style.boxSizing = 'border-box';
+            // Get explorer URL for this ticker
+            let explorerUrl = 'https://blockchair.com/bitcoin/transaction/';
+            try {
+                const urlMap = await getExplorerUrlMap();
+                if (urlMap && urlMap[ticker?.toUpperCase()]) {
+                    explorerUrl = urlMap[ticker.toUpperCase()];
+                }
+            } catch (e) {}
+            dialog.innerHTML = `
+              <button class="dialog-close-btn" aria-label="Close" style="position:absolute;top:18px;right:18px;background:none;border:none;color:#fff;font-size:2.6rem;font-weight:800;line-height:1;cursor:pointer;z-index:10;opacity:0.92;transition:opacity 0.15s, color 0.15s, box-shadow 0.15s;">&times;</button>
+              <h2 class="dialog-title" style="margin-bottom:18px;font-size:1.32em;font-weight:700;letter-spacing:-0.5px;">Transaction Details</h2>
+              <div class="tx-detail-row"><b>Direction:</b> <span style="color:${color};font-weight:600;">${icon} ${sanitize(direction)}</span></div>
+              <div class="tx-detail-row"><b>Amount:</b> <span style="color:${color};font-weight:600;">${sanitize(absAmount)}</span></div>
+              <div class="tx-detail-row"><b>Time:</b> <span style="color:#bbb;">${sanitize(fullDate)}</span></div>
+              <div class="tx-detail-row"><b>Confirmations:</b> <span style="color:#fff;background:#23232a;padding:2px 10px;border-radius:8px;">${sanitize(confirmations)}</span></div>
+              <div class="tx-detail-row" style="flex-direction:column;align-items:flex-start;text-align:left;gap:6px;">
+                <b>TxID:</b>
+                <span class="txid-full" style="display:block;word-break:break-all;background:#23232a;padding:4px 10px;border-radius:8px;font-size:1em;">${sanitize(txid)}</span>
+                <button class="styled-button txid-copy-btn-modal" style="margin-top:2px;font-size:1em;padding:6px 18px;">Copy</button>
+              </div>
+              <div class="tx-detail-row" style="justify-content:center;margin-top:18px;">
+                <a href="${sanitize(explorerUrl + txid)}" target="_blank" class="styled-button" style="font-size:1.08em;padding:10px 28px;margin:0 0 0 0;">View on Explorer</a>
+              </div>
+            `;
+            // Copy button logic
+            dialog.querySelector('.txid-copy-btn-modal').onclick = (e) => {
+              e.stopPropagation();
+              navigator.clipboard.writeText(txid).then(() => {
+                e.target.textContent = 'Copied!';
+                setTimeout(() => { e.target.textContent = 'Copy'; }, 1200);
+              });
+            };
+            // Close button logic
+            dialog.querySelector('.dialog-close-btn').onclick = () => {
+              document.body.removeChild(overlay);
+              window.removeEventListener('keydown', escListener);
+              window.txModalOpen = false;
+            };
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+            overlay.onclick = (e) => {
+              if (e.target === overlay) {
+                document.body.removeChild(overlay);
+                window.removeEventListener('keydown', escListener);
+                window.txModalOpen = false;
+              }
+            };
+        } catch (err) {
+            alert('Failed to open transaction details. See console for info.');
+            console.error('Error opening transaction details modal:', err);
+            window.txModalOpen = false;
+        }
+    };
+    txElement.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') txElement.onclick(e);
+    };
+    return txElement;
+}
+
+/**********************************************************
+ * Helper: Fetch details of a single input transaction (vin)
+ **********************************************************/
+async function getInputTransactionDetails(ticker, txid, retries = 2) {
+    if (!txid || typeof txid !== 'string' || !txid.match(/^[a-fA-F0-9]{6,}$/)) {
+        console.warn('getInputTransactionDetails: Invalid txid:', txid);
+        return null;
+    }
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(`/api/gettransaction/${ticker}/${txid}`);
+            const data = await response.json();
+            if (data.status === 'success') {
+                return data.data;
+            }
+            if (attempt < retries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                continue;
+            }
+            return null;
+        } catch (error) {
+            console.error(`Error getting input transaction ${txid} (attempt ${attempt + 1}):`, error);
+            if (attempt < retries) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                continue;
+            }
+            return null;
+        }
+    }
+}
+
+/**********************************************************
+ * Core: Fetch & analyze transaction details
+ **********************************************************/
+async function getTransactionDetails(ticker, txid, address) {
+    if (!txid || typeof txid !== 'string' || !txid.match(/^[a-fA-F0-9]{6,}$/)) {
+        console.warn('getTransactionDetails: Invalid txid:', txid);
+        return null;
+    }
+    try {
+        const response = await fetch(`/api/gettransaction/${ticker}/${txid}`);
+        const data = await response.json();
+
+        if (data.status !== 'success') {
+            if (data.message && (
+                data.message.includes('No such mempool transaction') ||
+                data.message.includes('Use -txindex to enable blockchain transaction queries')
+            )) {
+                const existingTxs = JSON.parse(localStorage.getItem('MyInscriptions')) || [];
+                const updatedTxs = existingTxs.filter(tx => tx.txid !== txid);
+                localStorage.setItem('MyInscriptions', JSON.stringify(updatedTxs));
+                console.log(`Removed transaction ${txid} from history as it's no longer accessible`);
+                return null;
+            }
+            throw new Error(data.message || 'Failed to get transaction details');
+        }
+
+        const txDetails = data.data;
+        let inputAmount = 0;
+        let receivedAmount = 0;
+
+        // Validate outputs
+        for (const output of txDetails.vout) {
+            const value = parseFloat(output.value) || 0;
+            const outAddresses = output.scriptPubKey?.addresses || [];
+            if (outAddresses.includes(address)) {
+                receivedAmount += value;
+            }
+        }
+
+        // Validate inputs
+        for (const input of txDetails.vin) {
+            if (!input.txid || input.vout === undefined) continue;
+
+            const inputTx = await getInputTransactionDetails(ticker, input.txid);
+            if (!inputTx || !inputTx.vout) continue;
+
+            const inputVout = inputTx.vout[input.vout];
+            if (!inputVout || !inputVout.scriptPubKey) continue;
+
+            const inAddresses = inputVout.scriptPubKey.addresses || [];
+            if (inAddresses.includes(address)) {
+                const val = parseFloat(inputVout.value) || 0;
+                inputAmount += val;
+            }
+        }
+
+        const netAmount = receivedAmount - inputAmount;
+        const txTime = txDetails.time || txDetails.blocktime || Math.floor(Date.now() / 1000);
+        const confirmations = txDetails.confirmations || 0;
+
+        return {
+            netAmount,
+            time: txTime,
+            confirmations
+        };
+    } catch (error) {
+        if (error.message && (
+            error.message.includes('No such mempool transaction') ||
+            error.message.includes('Use -txindex to enable blockchain transaction queries')
+        )) {
+            const existingTxs = JSON.parse(localStorage.getItem('MyInscriptions')) || [];
+            const updatedTxs = existingTxs.filter(tx => tx.txid !== txid);
+            localStorage.setItem('MyInscriptions', JSON.stringify(updatedTxs));
+            console.log(`Removed transaction ${txid} from history due to error: ${error.message}`);
+            return null;
+        }
+        console.error(`Error getting transaction details for txid ${txid}:`, error);
+        return null;
+    }
+}
+
+/**********************************************************
+ * TransactionManager: Manages unique transactions per address
+ **********************************************************/
+class TransactionManager {
+    constructor(ticker, address) {
+        this.ticker = ticker;
+        this.address = address;
+        this.storageKey = `processedTxs_${ticker}_${address}`;
+        this.maxTransactions = 1000; // Limit stored transactions
+        this.loadProcessedTransactions();
+        this.isProcessing = new Set();
+    }
+
+    loadProcessedTransactions() {
+        try {
+            const stored = localStorage.getItem(this.storageKey);
+            const parsed = stored ? JSON.parse(stored) : [];
+            // Prune to maxTransactions, keeping newest
+            this.processedTransactions = new Map(
+                parsed.slice(-this.maxTransactions).map(tx => [tx.txid, tx])
+            );
+        } catch (error) {
+            console.error('Error loading processed transactions:', error);
+            this.processedTransactions = new Map();
+        }
+    }
+
+    saveProcessedTransactions() {
+        try {
+            const transactions = Array.from(this.processedTransactions.entries());
+            // Prune to maxTransactions, keeping newest
+            const pruned = transactions.slice(-this.maxTransactions);
+            localStorage.setItem(this.storageKey, JSON.stringify(pruned));
+        } catch (error) {
+            console.error('Error saving processed transactions:', error);
+        }
+    }
+
+    async addTransaction(txid) {
+        if (this.processedTransactions.has(txid)) {
+            console.log(`Transaction ${txid} already processed for address ${this.address}`);
+            return false;
+        }
+        if (this.isProcessing.has(txid)) {
+            console.log(`Transaction ${txid} is currently being processed for address ${this.address}`);
+            return false;
+        }
+
+        this.isProcessing.add(txid);
+        try {
+            const txInfo = await getTransactionDetails(this.ticker, txid, this.address);
+            if (txInfo) {
+                this.processedTransactions.set(txid, { ...txInfo, txid });
+                this.saveProcessedTransactions();
+                console.log(`Added transaction ${txid} for address ${this.address}`);
+                return true;
+            }
+            return false;
+        } finally {
+            this.isProcessing.delete(txid);
+        }
+    }
+
+    async refreshTransaction(txid) {
+        const txInfo = await getTransactionDetails(this.ticker, txid, this.address);
+        if (txInfo) {
+            this.processedTransactions.set(txid, { ...txInfo, txid });
+        } else {
+            this.processedTransactions.delete(txid);
+        }
+        this.saveProcessedTransactions();
+    }
+
+    getTransactions() {
+        return Array.from(this.processedTransactions.values());
+    }
+
+    async cleanupStaleTransactions() {
+        const txids = Array.from(this.processedTransactions.keys());
+        for (const txid of txids) {
+            const txInfo = await getTransactionDetails(this.ticker, txid, this.address);
+            if (!txInfo) {
+                this.processedTransactions.delete(txid);
+            }
+        }
+        this.saveProcessedTransactions();
+    }
+}
+
+const transactionManagers = new Map(); // `${ticker}-${address}` -> TransactionManager
+const requestQueue = new Map(); // `${ticker}-${address}` -> Promise chain for queuing
+
+function getTransactionManager(ticker, address) {
+    const key = `${ticker}-${address}`;
+    if (!transactionManagers.has(key)) {
+        transactionManagers.set(key, new TransactionManager(ticker, address));
+    }
+    return transactionManagers.get(key);
+}
+
+/**********************************************************
+ * Main function: Display transaction history with queuing
+ **********************************************************/
+async function displayTransactionHistoryInner(ticker, address, container) {
+    if (window.txModalOpen) return;
+    const key = `${ticker}-${address}`;
+    console.log(`Starting displayTransactionHistory for ${key}`);
+
+    if (!requestQueue.has(key)) {
+        requestQueue.set(key, Promise.resolve());
+    }
+
+    const task = async () => {
+        let errorBanner = null;
+        try {
+            if (container.previousSibling && container.previousSibling.classList && container.previousSibling.classList.contains('tx-error-banner')) {
+                container.previousSibling.remove();
+            }
+            container.innerHTML = '<div style="margin-left: 20px;">Loading transactions... <span class="spinner"></span></div>';
+            await getTransactionManager(ticker, address).cleanupStaleTransactions();
+            let explorerTxs = await fetchAddressTxsFromExplorer(ticker, address);
+            let txs = null;
+            let explorerHasDetails = false;
+            let isFlopcoin = false;
+            if (explorerTxs && Array.isArray(explorerTxs) && explorerTxs.length > 0) {
+                if (explorerTxs[0].amount && explorerTxs[0].direction && explorerTxs[0].timestamp) {
+                    txs = explorerTxs;
+                    explorerHasDetails = true;
+                } else if (explorerTxs[0].sent !== undefined || explorerTxs[0].received !== undefined) {
+                    txs = explorerTxs;
+                    isFlopcoin = true;
+                } else {
+                    txs = explorerTxs.map(tx => ({ txid: tx.txid }));
+                }
+            } else {
+                const response = await fetch(`/api/getlasttransactions/${ticker}/${address}`);
+                const data = await response.json();
+                if (data.status !== 'success') {
+                    throw new Error(data.message || 'Failed to fetch transactions');
+                }
+                txs = [...new Set(data.data.transactions.map(tx => ({ txid: tx.txid })))];
+            }
+            const validTxs = txs.filter(tx => tx.txid && typeof tx.txid === 'string' && tx.txid.match(/^[a-fA-F0-9]{6,}$/));
+            if (validTxs.length !== txs.length) {
+                console.warn('Some txids are missing or invalid and will be skipped:', txs.filter(tx => !validTxs.includes(tx)));
+            }
+            container.innerHTML = '';
+            await Promise.all(validTxs.map(async (tx) => {
+                let txElement;
+                if (explorerHasDetails) {
+                    let netAmount = parseFloat(tx.amount);
+                    if (tx.direction === 'sent') netAmount = -Math.abs(netAmount);
+                    let timestamp = tx.timestamp;
+                    let time = Date.now() / 1000;
+                    if (timestamp && timestamp.match(/\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}/)) {
+                        const [d, m, y, h, min, s] = timestamp.match(/\d+/g).map(Number);
+                        time = new Date(y, m - 1, d, h, min, s).getTime() / 1000;
+                    }
+                    txElement = createTransactionElement(netAmount, time, tx.txid, 0, ticker);
+                    txElement.classList.add('fade-in');
+                    container.appendChild(txElement);
+                    getTransactionManager(ticker, address).addTransaction(tx.txid).then(() => {
+                        const txData = getTransactionManager(ticker, address).processedTransactions.get(tx.txid);
+                        if (txData) {
+                            const newTxElement = createTransactionElement(txData.netAmount, txData.time, tx.txid, txData.confirmations, ticker);
+                            newTxElement.classList.add('fade-in');
+                            container.replaceChild(newTxElement, txElement);
+                        }
+                    });
+                } else if (isFlopcoin) {
+                    // Flopcoin: use sent/received/timestamp
+                    let netAmount = 0;
+                    if (tx.sent && tx.sent > 0) netAmount = -Math.abs(parseFloat(tx.sent));
+                    else if (tx.received && tx.received > 0) netAmount = Math.abs(parseFloat(tx.received));
+                    let time = tx.timestamp;
+                    if (typeof time === 'string') time = parseInt(time);
+                    txElement = createTransactionElement(netAmount, time, tx.txid, 0, ticker);
+                    txElement.classList.add('fade-in');
+                    container.appendChild(txElement);
+                    getTransactionManager(ticker, address).addTransaction(tx.txid).then(() => {
+                        const txData = getTransactionManager(ticker, address).processedTransactions.get(tx.txid);
+                        if (txData) {
+                            const newTxElement = createTransactionElement(txData.netAmount, txData.time, tx.txid, txData.confirmations, ticker);
+                            newTxElement.classList.add('fade-in');
+                            container.replaceChild(newTxElement, txElement);
+                        }
+                    });
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'transaction transaction-card tx-placeholder';
+                    placeholder.innerHTML = `<div class=\"tx-row\"><span class=\"spinner\" style=\"margin-right:10px;\"></span>Loading transaction...</div>`;
+                    container.appendChild(placeholder);
+                    await getTransactionManager(ticker, address).addTransaction(tx.txid);
+                    const txData = getTransactionManager(ticker, address).processedTransactions.get(tx.txid);
+                    if (txData) {
+                        const txElement = createTransactionElement(txData.netAmount, txData.time, tx.txid, txData.confirmations, ticker);
+                        txElement.classList.add('fade-in');
+                        container.replaceChild(txElement, placeholder);
+                    } else {
+                        placeholder.innerHTML = '<div class=\"tx-row\" style=\"color:#ff4444;\">Failed to load transaction <button class=\"tx-retry-btn\">Retry</button></div>';
+                        const retryBtn = placeholder.querySelector('.tx-retry-btn');
+                        retryBtn.onclick = async () => {
+                            placeholder.innerHTML = `<div class=\\\"tx-row\\\"><span class=\\\"spinner\\\" style=\\\"margin-right:10px;\\\"></span>Loading transaction...</div>`;
+                            await getTransactionManager(ticker, address).addTransaction(tx.txid);
+                            const txData = getTransactionManager(ticker, address).processedTransactions.get(tx.txid);
+                            if (txData) {
+                                const txElement = createTransactionElement(txData.netAmount, txData.time, tx.txid, txData.confirmations, ticker);
+                                txElement.classList.add('fade-in');
+                                container.replaceChild(txElement, placeholder);
+                            } else {
+                                placeholder.innerHTML = '<div class=\\\"tx-row\\\" style=\\\"color:#ff4444;\\\">Failed to load transaction <button class=\\\"tx-retry-btn\\\">Retry</button></div>';
+                            }
+                        };
+                    }
+                }
+            }));
+            if (!container.children.length) {
+                container.innerHTML = `<img src=\"/static/images/notxsicon.png\" class=\"tx-empty-illustration\" alt=\"No transactions\"><div style=\"margin: 0 auto; color: #aaa; font-size: 1.2em;\">No recent transactions yet.<br>Send or receive to see your history here!</div>`;
+            } else {
+                container.insertAdjacentHTML('afterbegin', `<div style=\"margin-left: 20px; margin-bottom: 10px;\">Showing ${container.children.length} transactions</div>`);
+            }
+        } catch (error) {
+            errorBanner = document.createElement('div');
+            errorBanner.className = 'tx-error-banner';
+            errorBanner.textContent = 'Error loading transactions: ' + error.message;
+            if (!container.previousSibling || !container.previousSibling.classList || !container.previousSibling.classList.contains('tx-error-banner')) {
+                container.parentNode.insertBefore(errorBanner, container);
+            }
+            container.innerHTML = '';
+        } finally {
+            if (requestQueue.get(key) === currentQueue) {
+                requestQueue.delete(key);
+            }
+        }
+    };
+
+    const currentQueue = requestQueue.get(key);
+    const newQueue = currentQueue.then(task).catch(error => {
+        console.error(`Queue error for ${key}:`, error);
+    });
+    requestQueue.set(key, newQueue);
+
+    await newQueue;
+}
+
+/**********************************************************
+ * Export debounced version of displayTransactionHistory
+ **********************************************************/
+export const displayTransactionHistory = debounce(displayTransactionHistoryInner, 1000);
+
+// Load and cache explorers.json
+let explorerUrlMap = null;
+async function getExplorerUrlMap() {
+    if (explorerUrlMap) return explorerUrlMap;
+    try {
+        const res = await fetch('/static/explorersjson/explorers.json');
+        const data = await res.json();
+        explorerUrlMap = {};
+        for (const entry of data) {
+            explorerUrlMap[entry.ticker.toUpperCase()] = entry.tx_url;
+        }
+        return explorerUrlMap;
+    } catch (e) {
+        explorerUrlMap = {};
+        return explorerUrlMap;
+    }
+}
+
+// 1. Add CSS for skeleton loader and fade-in (inject into document head if not present)
+(function injectHistoryStyles() {
+    if (document.getElementById('tx-history-style')) return;
+    const style = document.createElement('style');
+    style.id = 'tx-history-style';
+    style.textContent = `
+    .tx-placeholder {
+      background: #23232a;
+      border-radius: 14px;
+      min-height: 64px;
+      margin-bottom: 10px;
+      animation: tx-skeleton-pulse 1.2s infinite alternate;
+      opacity: 0.7;
+    }
+    @keyframes tx-skeleton-pulse {
+      0% { background-color: #23232a; }
+      100% { background-color: #2c2c33; }
+    }
+    .transaction-card.fade-in {
+      animation: tx-fade-in 0.5s;
+    }
+    @keyframes tx-fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+    .tx-error-banner {
+      background: #ff4444;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .tx-empty-illustration {
+      width: 80px; height: 80px; margin: 30px auto 10px auto; display: block;
+    }
+    /* Make the whole card clickable except the copy button */
+    .transaction-card, .tx-clickable {
+      pointer-events: auto !important;
+      cursor: pointer !important;
+    }
+    .transaction-card .txid-copy-btn {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    `;
+    document.head.appendChild(style);
+})();
+
+// 2. Sanitize helper
+function sanitize(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+async function getExplorerConfigMap() {
+    if (getExplorerConfigMap.cache) return getExplorerConfigMap.cache;
+    try {
+        const res = await fetch('/static/explorersjson/explorers.json');
+        const data = await res.json();
+        const map = {};
+        for (const entry of data) {
+            map[entry.ticker.toUpperCase()] = entry;
+        }
+        getExplorerConfigMap.cache = map;
+        return map;
+    } catch (e) {
+        return {};
+    }
+}
+
+async function fetchAddressTxsFromExplorer(ticker, address) {
+    const configMap = await getExplorerConfigMap();
+    const config = configMap[ticker.toUpperCase()];
+    if (!config || (!config.address_txs_url && !config.address_txs_url_alt)) return null;
+    let urls = [];
+    if (config.address_txs_url) urls.push(config.address_txs_url.replace('{address}', address));
+    if (ticker.toUpperCase() === 'PEP' && config.address_txs_url_alt) urls.push(config.address_txs_url_alt.replace('{address}', address));
+    for (let url of urls) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Explorer API error');
+            const data = await res.json();
+            // Parse by explorer
+            if (ticker.toUpperCase() === 'PEP') {
+                if (Array.isArray(data) && data[0] && data[0].txid && data[0].amount && data[0].direction && data[0].timestamp) {
+                    return data.map(tx => ({
+                        txid: tx.txid,
+                        amount: tx.amount,
+                        direction: tx.direction,
+                        timestamp: tx.timestamp
+                    }));
+                }
+                if (Array.isArray(data.txids)) {
+                    return data.txids.map(txid => ({ txid }));
+                }
+            } else if (ticker.toUpperCase() === 'FLOP') {
+                // Flopcoin: sent, received, timestamp
+                if (Array.isArray(data) && data[0] && data[0].txid && (data[0].sent !== undefined || data[0].received !== undefined) && data[0].timestamp) {
+                    return data.map(tx => ({
+                        txid: tx.txid,
+                        sent: tx.sent,
+                        received: tx.received,
+                        timestamp: tx.timestamp
+                    }));
+                }
+            } else if (ticker.toUpperCase() === 'DEV') {
+                if (Array.isArray(data)) {
+                    return data.map(tx => ({ txid: tx.txid }));
+                }
+            } else if (ticker.toUpperCase() === 'XBT' || ticker.toUpperCase() === 'SHIC' || ticker.toUpperCase() === 'B1T' || ticker.toUpperCase() === 'GEMMA' || ticker.toUpperCase() === 'BONC') {
+                if (Array.isArray(data)) {
+                    return data.map(tx => ({ txid: tx.txid }));
+                }
+            } else if (ticker.toUpperCase() === 'LKY') {
+                if (data && Array.isArray(data.txs)) {
+                    return data.txs.map(tx => ({ txid: tx.txid }));
+                }
+            } else if (ticker.toUpperCase() === 'DGB') {
+                if (data && Array.isArray(data.transactions)) {
+                    return data.transactions.map(tx => ({ txid: tx.txid }));
+                }
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+    return null;
+}
+
+if (typeof window !== 'undefined') window.txModalOpen = false;

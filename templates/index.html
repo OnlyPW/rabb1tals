@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Blockchain Plugz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: #0d0d0d;
+      color: #fff;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      transition: opacity 0.5s ease;
+    }
+
+    body {
+      opacity: 1;
+    }
+
+    body.fade-out {
+      opacity: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    main {
+      padding: 2rem 1rem 5rem;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: #aaa;
+      margin-bottom: 2.5rem;
+    }
+
+    .chains {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 32px;
+      margin-bottom: 3rem;
+    }
+
+    .coin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 90px;
+    }
+
+    .coin img {
+      width: 70px;
+      height: 70px;
+      object-fit: contain;
+      border-radius: 50%;
+      background: #fff;
+      padding: 8px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+      transition: transform 0.2s ease;
+    }
+
+    .coin img:hover {
+      transform: scale(1.1);
+    }
+
+    .coin span {
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      color: #ccc;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      width: 100%;
+      margin-bottom: 3rem;
+    }
+
+    .grid a {
+      display: block;
+      padding: 14px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 14px;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 1rem;
+      transition: all 0.25s ease;
+    }
+
+    .grid a:hover {
+      background: #2c2c2c;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 2rem 1rem 3rem;
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+    }
+
+    @media (max-width: 500px) {
+      h1 {
+        font-size: 2.2rem;
+      }
+
+      .subtitle {
+        font-size: 1rem;
+      }
+
+      .coin {
+        width: 80px;
+      }
+
+      .coin img {
+        width: 60px;
+        height: 60px;
+        padding: 6px;
+      }
+
+      .coin span {
+        font-size: 0.85rem;
+      }
+
+      .grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.8rem;
+      }
+
+      .grid a {
+        font-size: 0.9rem;
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Blockchain Plugz</h1>
+    <p class="subtitle">Multichain Proof-of-Work Wallet<br>Bitcoin • Litecoin • Dogecoin<br>and many more...</p>
+
+    <div class="chains">
+      <div class="coin">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" alt="Bitcoin" />
+        <span>Bitcoin  (soon)</span>
+      </div>
+      <div class="coin">
+        <img src="/static/images/LTCicon.png" alt="Litecoin" />
+        <span>Litecoin</span>
+      </div>
+      <div class="coin">
+        <img src="https://upload.wikimedia.org/wikipedia/en/d/d0/Dogecoin_Logo.png" alt="Dogecoin" />
+        <span>Dogecoin</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <a href="/wallet">🔐 Wallet</a>
+      <a href="/faucets">💧 Faucets</a>
+      <a href="/block_explorers">🔎 Block Explorers</a>
+      <a href="/ord_explorers">🧩 Ord Explorers</a>
+      <a href="https://github.com/martinseeger2002/plugzWallet2" target="_blank">📁 GitHub</a>
+      <a href="https://discord.gg/FDYqfR7nm6" target="_blank">⚡ Node Runners</a>
+      <a href="https://x.com/DogePlugz" target="_blank">🐦 X.com</a>
+      <a href="https://discord.gg/weSmXAay" target="_blank">💬 Discord</a>
+    </div>
+  </main>
+
+  <footer>
+    &copy; 2025 Blockchain Plugz • All rights reserved.
+  </footer>
+
+  <script>
+    // Internal fade-out for internal links (those starting with "/")
+    document.addEventListener("DOMContentLoaded", () => {
+      const internalLinks = document.querySelectorAll('a[href^="/"]');
+      internalLinks.forEach(link => {
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          const href = this.getAttribute("href");
+          document.body.classList.add("fade-out");
+          setTimeout(() => {
+            window.location.href = href;
+          }, 500);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

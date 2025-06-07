@@ -1,0 +1,99 @@
+[XBT]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 8333
+
+[LKY]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 9240
+
+[DOGE]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 22555
+
+[PEPE]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 33874
+
+[PEP]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 33874
+
+[SHIC]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 33864
+
+[BONK]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 14327
+
+[BONC]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 14327
+
+[FLOP]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 32552
+
+[DIGI]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 12024
+
+[DGB]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 12024
+
+[DEV]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 42069
+
+[GEMMA]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 2330
+
+[LTC]
+rpcuser= <your_rpc_username>
+rpcpassword= <your_rpc_password>
+rpchost = localhost
+rpcport = 9333
+rpcwallet = <your_rpc_wallet>
+
+
+[JKC]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 9771
+
+[B1T]
+rpcuser = <your_rpc_username>
+rpcpassword = <your_rpc_password>
+rpchost = localhost
+rpcport = 33318
+
+
