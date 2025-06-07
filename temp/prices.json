@@ -1,74 +1,74 @@
 {
     "DOGE": {
-        "nonkyc": "0.182388689189",
-        "xeggex": "0.180000000000",
-        "mecacex": "0.18256",
+        "nonkyc": "0.183386720513",
+        "xeggex": "0.180297000000",
+        "mecacex": "0.18346",
         "exbitron": null,
-        "bitcointry": "0.18276",
-        "aggregated": "0.1819271723"
+        "bitcointry": "0.18345",
+        "aggregated": "0.1826484301"
     },
     "PEP": {
-        "nonkyc": "0.000235150583",
-        "xeggex": "0.000233675662",
-        "mecacex": "0.000238",
+        "nonkyc": "0.000236403505",
+        "xeggex": "0.000232959312",
+        "mecacex": "0.000239",
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "0.0002356087"
+        "aggregated": "0.0002361209"
     },
     "SHIC": {
-        "nonkyc": "0.000007281176",
+        "nonkyc": "0.000007281500",
         "xeggex": null,
-        "mecacex": "0.00000204",
+        "mecacex": "0.00000213",
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "0.0000046606"
+        "aggregated": "0.0000047058"
     },
     "BONC": {
-        "nonkyc": "0.000005709550",
-        "xeggex": "0.000005630406",
+        "nonkyc": "0.000005717170",
+        "xeggex": "0.000005629569",
         "mecacex": null,
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "0.0000056700"
+        "aggregated": "0.0000056734"
     },
     "FLOP": {
         "nonkyc": null,
         "xeggex": null,
-        "mecacex": "0.0000013034",
+        "mecacex": "0.0000013242",
         "exbitron": null,
         "bitcointry": "0.0000010500",
-        "aggregated": "0.0000011767"
+        "aggregated": "0.0000011871"
     },
     "DGB": {
         "nonkyc": "0.008811500000",
         "xeggex": "0.008608000000",
         "mecacex": null,
         "exbitron": null,
-        "bitcointry": "0.00895",
-        "aggregated": "0.0087898333"
+        "bitcointry": "0.00899",
+        "aggregated": "0.0088031667"
     },
     "DEV": {
         "nonkyc": null,
-        "xeggex": "2.49421E-7",
-        "mecacex": "1.357E-7",
+        "xeggex": "2.49630E-7",
+        "mecacex": "1.183E-7",
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "1.926E-7"
+        "aggregated": "1.840E-7"
     },
     "B1T": {
         "nonkyc": null,
         "xeggex": "0.018184150000",
-        "mecacex": "0.037671",
+        "mecacex": "0.038394",
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "0.0279275750"
+        "aggregated": "0.0282890750"
     },
     "XBT": {
-        "nonkyc": "0.497747300000",
+        "nonkyc": "0.497577650000",
         "xeggex": null,
-        "mecacex": "0.342368",
+        "mecacex": "0.333004",
         "exbitron": null,
         "bitcointry": null,
-        "aggregated": "0.4200576500"
+        "aggregated": "0.4152908250"
     }
 }
