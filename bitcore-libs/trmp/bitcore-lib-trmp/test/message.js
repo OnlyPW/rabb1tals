@@ -12,11 +12,11 @@ var Signature = bitcore.crypto.Signature;
 var Message = require('../lib/message');
 
 describe('Message', function() {
-  var address = 'n1ZCYg9YXtB5XCZazLxSmPDa8iwJRZHhGx';
-  var badAddress = 'mmRcrB5fTwgxaFJmVLNtaG8SV454y1E3kC';
-  var privateKey = bitcore.PrivateKey.fromWIF('cPBn5A4ikZvBTQ8D7NnvHZYCAxzDZ5Z2TSGW2LkyPiLxqYaJPBW4');
+  var address = 'Me5ebXcnrLrzx2smf2qdZwoQ25RcRdwuRp';
+  var badAddress = 'MmRcrB5fTwgxaFJmVLNtaG8SV454y1E3kC';
+  var privateKey = bitcore.PrivateKey.fromWIF('TM1CLc1KDM7anrui6FUMjpqiAcyL6vwd8umeP6LPED19UYGFg1Rr');
   var text = 'hello, world';
-  var signatureString = 'H/DIn8uA1scAuKLlCx+/9LnAcJtwQQ0PmcPrJUq90aboLv3fH5fFvY+vmbfOSFEtGarznYli6ShPr9RXwY9UrIY=';
+  var signatureString = 'H5ZXuBYR0cpi3g0qEtXDXtZ6YMbEn4oF1oX+ufCTky8HAToqPbxuLBV5wAgDiwmhVfBtaybg70MugGhBFnJ5U+c=';
 
   var badSignatureString = 'H69qZ4mbZCcvXk7CWjptD5ypnYVLvQ3eMXLM8+1gX21SLH/GaFnAjQrDn37+TDw79i9zHhbiMMwhtvTwnPigZ6k=';
 

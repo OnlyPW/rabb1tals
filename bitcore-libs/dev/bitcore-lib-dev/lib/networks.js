@@ -180,7 +180,7 @@ addNetwork({
   privatekey: 0xef,
   scripthash: 0xc4,
   xpubkey: 0x043587cf,
-  xprivkey: 0x04358394,
+  xprivkey: 0x04358394
 });
 
 var regtest = get('regtest');

@@ -22,14 +22,91 @@ address_logger.addHandler(address_handler)
 # Simple rate-limiting mechanism
 request_timestamps = defaultdict(list)
 
-def rate_limit(endpoint, ticker, identifier, window=1, max_requests=1):
+@bitcoin_rpc_bp.route('/health/<ticker>', methods=['GET'])
+def check_node_health(ticker):
+    """Check if a cryptocurrency node is accessible."""
+    try:
+        if ticker not in config:
+            return jsonify({
+                "status": "error",
+                "message": f"No configuration found for ticker: {ticker}"
+            }), 404
+        
+        rpc_connection = get_rpc_connection(ticker)
+        
+        # Try to get basic blockchain info to test connection
+        try:
+            info = rpc_connection.getblockchaininfo()
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "ticker": ticker,
+                    "connected": True,
+                    "blocks": info.get('blocks', 'unknown'),
+                    "headers": info.get('headers', 'unknown'),
+                    "chain": info.get('chain', 'unknown')
+                }
+            })
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Node connected but RPC call failed: {str(e)}",
+                "data": {
+                    "ticker": ticker,
+                    "connected": True,
+                    "rpc_error": str(e)
+                }
+            }), 200
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Failed to connect to {ticker} node: {str(e)}",
+            "data": {
+                "ticker": ticker,
+                "connected": False,
+                "error": str(e)
+            }
+        }), 503
+
+@bitcoin_rpc_bp.route('/health', methods=['GET'])
+def check_all_nodes_health():
+    """Check health of all configured cryptocurrency nodes."""
+    health_status = {}
+    
+    for ticker in config.sections():
+        try:
+            rpc_connection = get_rpc_connection(ticker)
+            info = rpc_connection.getblockchaininfo()
+            health_status[ticker] = {
+                "connected": True,
+                "blocks": info.get('blocks', 'unknown'),
+                "headers": info.get('headers', 'unknown'),
+                "chain": info.get('chain', 'unknown')
+            }
+        except Exception as e:
+            health_status[ticker] = {
+                "connected": False,
+                "error": str(e)
+            }
+    
+    return jsonify({
+        "status": "success",
+        "data": {
+            "total_nodes": len(config.sections()),
+            "connected_nodes": len([s for s in health_status.values() if s.get('connected')]),
+            "nodes": health_status
+        }
+    })
+
+def rate_limit(endpoint, ticker, identifier, window=5, max_requests=10):
     """
     Rate limit requests to an endpoint.
     endpoint: The API endpoint (e.g., 'listunspent')
     ticker: The ticker (e.g., 'GEMMA')
     identifier: The address or txid
-    window: Time window in seconds
-    max_requests: Maximum requests allowed in the window
+    window: Time window in seconds (default: 5 seconds)
+    max_requests: Maximum requests allowed in the window (default: 10 requests)
     """
     key = f"{endpoint}:{ticker}:{identifier}"
     current_time = time.time()
@@ -51,25 +128,65 @@ def get_rpc_connection(ticker):
     if ticker not in config:
         raise ValueError(f"No configuration found for ticker: {ticker}")
     
-    rpc_user = config[ticker]['rpcuser']
-    rpc_password = config[ticker]['rpcpassword']
-    rpc_host = config[ticker]['rpchost']
-    rpc_port = config[ticker]['rpcport']
-    rpcwallet = config[ticker].get('rpcwallet', '').strip()
-    if rpcwallet:
-        rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/wallet/{rpcwallet}'
-    else:
-        rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
-    
-    return AuthServiceProxy(rpc_url)
+    try:
+        rpc_user = config[ticker]['rpcuser']
+        rpc_password = config[ticker]['rpcpassword']
+        rpc_host = config[ticker]['rpchost']
+        rpc_port = config[ticker]['rpcport']
+        rpcwallet = config[ticker].get('rpcwallet', '').strip()
+        
+        # Validate configuration values
+        if not all([rpc_user, rpc_password, rpc_host, rpc_port]):
+            raise ValueError(f"Incomplete RPC configuration for {ticker}")
+        
+        # Check if host is localhost and validate port
+        if rpc_host == 'localhost' and not (1024 <= int(rpc_port) <= 65535):
+            raise ValueError(f"Invalid port number for {ticker}: {rpc_port}")
+        
+        if rpcwallet:
+            rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/wallet/{rpcwallet}'
+        else:
+            rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
+        
+        # Test connection with timeout
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)  # 5 second timeout
+        
+        try:
+            sock.connect((rpc_host, int(rpc_port)))
+            sock.close()
+        except (socket.timeout, socket.error) as e:
+            sock.close()
+            raise ConnectionError(f"Cannot connect to {rpc_host}:{rpc_port} - {str(e)}")
+        
+        return AuthServiceProxy(rpc_url)
+        
+    except KeyError as e:
+        raise ValueError(f"Missing RPC configuration for {ticker}: {e}")
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        raise ConnectionError(f"Failed to establish RPC connection for {ticker}: {str(e)}")
 
 @bitcoin_rpc_bp.route('/listunspent/<ticker>/<address>', methods=['GET'])
 def get_unspent_txs(ticker, address):
-    if not rate_limit('listunspent', ticker, address, window=1, max_requests=1):
+    if not rate_limit('listunspent', ticker, address, window=5, max_requests=10):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching unspent transactions for ticker: {ticker}, address: {address}")
-    rpc_connection = get_rpc_connection(ticker)
+    
+    try:
+        rpc_connection = get_rpc_connection(ticker)
+    except Exception as e:
+        error_msg = f"Failed to connect to {ticker} RPC node: {str(e)}"
+        address_logger.error(error_msg)
+        return jsonify({
+            "status": "error", 
+            "message": error_msg,
+            "details": "The cryptocurrency node may be offline or unreachable"
+        }), 503
+    
     try:
         utxos = rpc_connection.listunspent(0, 9999999, [address])
         return jsonify({
@@ -89,8 +206,20 @@ def get_unspent_txs(ticker, address):
             }
         })
     except JSONRPCException as e:
-        address_logger.error(f"Error fetching unspent transactions: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 400
+        address_logger.error(f"RPC error fetching unspent transactions for {ticker}: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"RPC error: {str(e)}",
+            "details": "The cryptocurrency node returned an error"
+        }), 400
+    except Exception as e:
+        error_msg = f"Unexpected error fetching unspent transactions for {ticker}: {str(e)}"
+        address_logger.error(error_msg)
+        return jsonify({
+            "status": "error", 
+            "message": error_msg,
+            "details": "An unexpected error occurred while communicating with the node"
+        }), 500
 
 @bitcoin_rpc_bp.route('/sendrawtransaction/<ticker>', methods=['POST'])
 def send_raw_transaction(ticker):
@@ -128,7 +257,7 @@ def estimate_smart_fee(ticker, conf_target):
 
 @bitcoin_rpc_bp.route('/getlasttransactions/<ticker>/<address>', methods=['GET'])
 def get_last_transactions(ticker, address):
-    if not rate_limit('getlasttransactions', ticker, address, window=1, max_requests=1):
+    if not rate_limit('getlasttransactions', ticker, address, window=5, max_requests=10):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching last transactions for ticker: {ticker}, address: {address}")
@@ -210,7 +339,7 @@ def import_address(ticker):
 
 @bitcoin_rpc_bp.route('/gettransaction/<ticker>/<txid>', methods=['GET'])
 def get_transaction_details(ticker, txid):
-    if not rate_limit('gettransaction', ticker, txid, window=1, max_requests=1):
+    if not rate_limit('gettransaction', ticker, txid, window=5, max_requests=10):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching transaction details for ticker: {ticker}, txid: {txid}")

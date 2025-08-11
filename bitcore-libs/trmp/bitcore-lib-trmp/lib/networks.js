@@ -139,15 +139,15 @@ function removeNetwork(network) {
 addNetwork({
   name: 'livenet',
   alias: 'mainnet',
-  pubkeyhash: 0x19,         // 25 decimal
-  privatekey: 0x9e,         // 158 decimal
-  scripthash: 0x16,         // 22 decimal
-  bech32prefix: 'bc',       // (if you have bech32, otherwise omit or set to your prefix)
-  xpubkey: 0x02facafd,      // 0x02fa, 0xca, 0xfd
-  xprivkey: 0x02fac398,     // 0x02fa, 0xc3, 0x98
-  networkMagic: 0x46544231, // F T B 1
-  port: 33317,
-  dnsSeeds: []
+  pubkeyhash: 0x41,         // 65 decimal (TRMP mainnet - starts with T)
+  privatekey: 0x97,         // 151 decimal (TRMP mainnet)
+  scripthash: 0x1c,         // 28 decimal (TRMP mainnet)
+  bech32prefix: 'trmp',     // TRMP mainnet bech32 prefix
+  xpubkey: 0x02fadafe,      // 0x02, 0xfa, 0xda, 0xfe (TRMP mainnet)
+  xprivkey: 0x02fac495,     // 0x02, 0xfa, 0xc4, 0x95 (TRMP mainnet)
+  networkMagic: 0x54524d50, // 0x54, 0x52, 0x4d, 0x50 (TRMP mainnet)
+  port: 33884,
+  dnsSeeds: ['dnsseed.trumpow.meme']
 });
 
 /**
@@ -159,14 +159,14 @@ var livenet = get('livenet');
 addNetwork({
   name: 'testnet',
   alias: 'test',
-  pubkeyhash: 0x41,         // 65 decimal
-  privatekey: 0xf1,         // 241 decimal
-  scripthash: 0xc4,         // 196 decimal
-  bech32prefix: 'tb',       // (if you have bech32, otherwise omit or set to your prefix)
-  xpubkey: 0x043587cf,      // 0x04, 0x35, 0x87, 0xcf
-  xprivkey: 0x04358394,     // 0x04, 0x35, 0x83, 0x94
-  networkMagic: 0x54423738, // T B 7 8
-  port: 44417,
+  pubkeyhash: 0x71,         // 113 decimal (TRMP testnet)
+  privatekey: 0xf1,         // 241 decimal (TRMP testnet)
+  scripthash: 0xc4,         // 196 decimal (TRMP testnet)
+  bech32prefix: 'ttrmp',    // TRMP testnet bech32 prefix
+  xpubkey: 0x043587cf,      // 0x04, 0x35, 0x87, 0xcf (TRMP testnet)
+  xprivkey: 0x04358394,     // 0x04, 0x35, 0x83, 0x94 (TRMP testnet)
+  networkMagic: 0x54524d50, // 0x54, 0x52, 0x4d, 0x50 (TRMP testnet)
+  port: 44884,
   dnsSeeds: []
 });
 
@@ -179,14 +179,14 @@ var testnet = get('testnet');
 addNetwork({
   name: 'regtest',
   alias: 'dev',
-  pubkeyhash: 0x3d,         // 61 decimal
-  privatekey: 0xef,         // 239 decimal
-  scripthash: 0xc4,         // 196 decimal
-  bech32prefix: 'bcrt',     // (if you have bech32, otherwise omit or set to your prefix)
-  xpubkey: 0x043587cf,      // 0x04, 0x35, 0x87, 0xcf
-  xprivkey: 0x04358394,     // 0x04, 0x35, 0x83, 0x94
-  networkMagic: 0x42524547, // B R E G
-  port: 22217,
+  pubkeyhash: 0x6f,         // 111 decimal (TRMP regtest)
+  privatekey: 0xef,         // 239 decimal (TRMP regtest)
+  scripthash: 0xc4,         // 196 decimal (TRMP regtest)
+  bech32prefix: 'rtrmp',    // TRMP regtest bech32 prefix
+  xpubkey: 0x043587cf,      // 0x04, 0x35, 0x87, 0xcf (TRMP regtest)
+  xprivkey: 0x04358394,     // 0x04, 0x35, 0x83, 0x94 (TRMP regtest)
+  networkMagic: 0x54524d50, // 0x54, 0x52, 0x4d, 0x50 (TRMP regtest)
+  port: 16329,
   dnsSeeds: []
 });
 

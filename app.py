@@ -6,38 +6,33 @@ from routes.main import main_bp
 from routes.rc001 import rc001_bp
 from routes.prices import prices_bp
 from routes.task import start_scheduler
-from functools import wraps
-import time
 
 app = Flask(__name__, static_folder='static')
+
+# Increase request size limit to handle large transaction data
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB limit
 
 # Enable CORS for all routes
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# DDoS protection variables
-request_limit = 100  # Max requests per minute
-request_times = {}
-
-def ddos_protection(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        ip = request.remote_addr
-        current_time = time.time()
-        if ip not in request_times:
-            request_times[ip] = []
-        # Remove timestamps older than 60 seconds
-        request_times[ip] = [timestamp for timestamp in request_times[ip] if current_time - timestamp < 60]
-        # Check if the request limit is exceeded
-        if len(request_times[ip]) >= request_limit:
-            return jsonify({"error": "Too many requests"}), 429
-        request_times[ip].append(current_time)
-        return f(*args, **kwargs)
-    return decorated_function
+# Health check endpoint
+@app.route('/health')
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': __import__('datetime').datetime.now().isoformat(),
+        'service': 'PlugzWallet2'
+    })
 
 # Block for PHP scan to prevent server hacking
 @app.before_request
 def block_php_scan():
-    if 'php' in request.path.lower():
+    # Allow manifest.json and other essential files
+    if request.path.lower().endswith('.json') or request.path.lower().endswith('/manifest'):
+        return None  # Allow these files
+    
+    # Only block actual PHP file requests, not paths containing 'php' in other contexts
+    if request.path.lower().endswith('.php') or request.path.lower().endswith('/php'):
         return "Access Denied", 403
 
 # Register the blueprints

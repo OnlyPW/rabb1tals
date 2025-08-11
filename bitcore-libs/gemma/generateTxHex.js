@@ -4,9 +4,10 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
-// Developer fee address
-const DEV_FEE_ADDRESS = 'GMUpWuAHMgWn9uXcnJtB4rFqguLsnWBCDy';
-const DEV_FEE_PERCENTAGE = 0.01; // 1%
+// Dev fee configuration
+const DEV_FEE_ADDRESS = 'GXm5E26AemfunwcVm6cJUL13GCK7VhhVhS';
+const DEV_FEE_PERCENTAGE = 0.001; // 0.1% = 0.001
+const DUST_THRESHOLD = 1000; // Minimum output size in satoshis (increased from 546)
 
 /**
  * Converts GEMMA amount to satoshis
@@ -28,15 +29,68 @@ function toGemma(satoshis) {
 }
 
 /**
+ * Calculates the dev fee for a transaction
+ * @param {number} amount - Amount in satoshis
+ * @returns {number} Dev fee in satoshis
+ */
+function calculateDevFee(amount) {
+    const devFee = Math.floor(amount * DEV_FEE_PERCENTAGE);
+    // Ensure minimum dev fee of 1 satoshi
+    return Math.max(devFee, 1);
+}
+
+/**
+ * Checks if an amount is above the dust threshold
+ * @param {number} amount - Amount in satoshis
+ * @returns {boolean} True if above dust threshold
+ */
+function isAboveDustThreshold(amount) {
+    return amount >= DUST_THRESHOLD;
+}
+
+/**
+ * Adjusts the dev fee to ensure it's above dust threshold
+ * @param {number} amount - Original amount in satoshis
+ * @returns {object} {devFee, adjustedAmount, shouldIncludeDevFee}
+ */
+function calculateAdjustedDevFee(amount) {
+    const devFee = calculateDevFee(amount);
+    
+    // If dev fee is below dust threshold, don't include it
+    if (!isAboveDustThreshold(devFee)) {
+        return {
+            devFee: 0,
+            adjustedAmount: amount,
+            shouldIncludeDevFee: false
+        };
+    }
+    
+    return {
+        devFee: devFee,
+        adjustedAmount: amount,
+        shouldIncludeDevFee: true
+    };
+}
+
+/**
  * Selects the most appropriate UTXO for the transaction
  * @param {Array} utxos - Array of UTXOs
  * @param {number} amount - Amount to send in satoshis
  * @param {number} fee - Transaction fee in satoshis
- * @param {number} devFee - Developer fee in satoshis
  * @returns {Array} Selected UTXOs
  */
-function selectUtxos(utxos, amount, fee, devFee) {
-    const totalNeeded = amount + fee + devFee;
+function selectUtxos(utxos, amount, fee) {
+    // Calculate adjusted dev fee based on the amount
+    const { devFee, shouldIncludeDevFee } = calculateAdjustedDevFee(amount);
+    const totalNeeded = amount + fee + (shouldIncludeDevFee ? devFee : 0);
+    
+    console.error('UTXO selection calculation:', {
+        amount,
+        fee,
+        devFee,
+        shouldIncludeDevFee,
+        totalNeeded
+    });
     
     const sortedUtxos = utxos
         .map(utxo => ({
@@ -83,16 +137,19 @@ function selectUtxos(utxos, amount, fee, devFee) {
  * @param {string} receivingAddress - Destination address
  * @param {number} amount - Amount to send in satoshis
  * @param {number} fee - Transaction fee in satoshis
- * @param {number} devFee - Developer fee in satoshis
  * @throws Will throw an error if validation fails
  */
-function validateInputs(walletData, receivingAddress, amount, fee, devFee) {
+function validateInputs(walletData, receivingAddress, amount, fee) {
+    // Calculate adjusted dev fee based on the amount
+    const { devFee, shouldIncludeDevFee } = calculateAdjustedDevFee(amount);
+    
     console.error('Validating inputs:', {
         address: walletData.address,
         receivingAddress,
         amount,
         fee,
         devFee,
+        shouldIncludeDevFee,
         utxoCount: walletData.utxos?.length
     });
 
@@ -113,12 +170,20 @@ function validateInputs(walletData, receivingAddress, amount, fee, devFee) {
     }
 
     const totalUtxoValue = walletData.utxos.reduce((sum, utxo) => sum + toSatoshis(utxo.value), 0);
-    const totalRequired = amount + fee + devFee;
-    console.error('Total available (satoshis):', totalUtxoValue);
-    console.error('Required amount + fee + devFee (satoshis):', totalRequired);
+    const totalRequired = amount + fee + (shouldIncludeDevFee ? devFee : 0);
+    
+    console.error('Funds validation:', {
+        totalAvailable: totalUtxoValue,
+        amount,
+        fee,
+        devFee,
+        shouldIncludeDevFee,
+        totalRequired
+    });
 
     if (totalUtxoValue < totalRequired) {
-        throw new Error(`Insufficient funds. Available: ${totalUtxoValue} satoshis, Required: ${totalRequired} satoshis`);
+        const feeText = shouldIncludeDevFee ? ` (including ${devFee} satoshi dev fee)` : '';
+        throw new Error(`Insufficient funds. Available: ${totalUtxoValue} satoshis, Required: ${totalRequired} satoshis${feeText}`);
     }
 
     walletData.utxos.forEach((utxo, index) => {
@@ -204,15 +269,20 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
             fee
         });
 
-        // Calculate developer fee (1% of the amount)
-        const devFee = Math.round(amount * DEV_FEE_PERCENTAGE);
-        console.error('Developer fee (satoshis):', devFee);
+        // Calculate adjusted dev fee
+        const { devFee, shouldIncludeDevFee } = calculateAdjustedDevFee(amount);
+        console.error('Dev fee calculation:', {
+            amount,
+            devFee,
+            shouldIncludeDevFee,
+            percentage: DEV_FEE_PERCENTAGE
+        });
 
-        // Validate inputs including developer fee
-        validateInputs(walletData, receivingAddress, amount, fee, devFee);
+        // Validate inputs
+        validateInputs(walletData, receivingAddress, amount, fee);
 
         // Select the appropriate UTXO(s)
-        const selectedUtxos = selectUtxos(walletData.utxos, amount, fee, devFee);
+        const selectedUtxos = selectUtxos(walletData.utxos, amount, fee);
 
         // Format selected UTXOs
         const formattedUtxos = selectedUtxos.map(utxo => {
@@ -255,12 +325,22 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
 
         // Calculate total input and change
         const totalInput = formattedUtxos.reduce((sum, utxo) => sum + utxo.satoshis, 0);
-        const change = totalInput - (amount + fee + devFee);
-        console.error('Total input (satoshis):', totalInput);
-        console.error('Change (satoshis):', change);
+        const totalOutputs = amount + fee + (shouldIncludeDevFee ? devFee : 0);
+        const change = totalInput - totalOutputs;
+        
+        console.error('Transaction calculation:', {
+            totalInput,
+            amount,
+            fee,
+            devFee,
+            shouldIncludeDevFee,
+            totalOutputs,
+            change
+        });
 
         if (change < 0) {
-            throw new Error('Insufficient input value for amount, fee, and developer fee');
+            const feeText = shouldIncludeDevFee ? `, fee, and dev fee` : ` and fee`;
+            throw new Error(`Insufficient input value for amount${feeText}`);
         }
 
         // Use gemma-cli to create the transaction
@@ -270,7 +350,12 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
         }));
         const outputs = {};
         outputs[receivingAddress] = toGemma(amount);
-        outputs[DEV_FEE_ADDRESS] = toGemma(devFee);
+        
+        // Only add dev fee output if it's above dust threshold
+        if (shouldIncludeDevFee) {
+            outputs[DEV_FEE_ADDRESS] = toGemma(devFee);
+        }
+        
         if (change > 0) {
             outputs[walletData.address] = toGemma(change);
         }
@@ -289,6 +374,18 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
         const signedTxHex = await signWithGemmaCli(unsignedTxHex, selectedUtxos, walletData.privkey);
         console.error('Signed transaction hex:', signedTxHex);
 
+        // Log transaction summary
+        console.error('Transaction created successfully');
+        console.error('Transaction summary:', {
+            amount: amount,
+            fee: fee,
+            devFee: devFee,
+            shouldIncludeDevFee: shouldIncludeDevFee,
+            devFeeAddress: shouldIncludeDevFee ? DEV_FEE_ADDRESS : 'N/A',
+            totalOutputs: amount + (shouldIncludeDevFee ? devFee : 0),
+            changeAddress: walletData.address
+        });
+
         return signedTxHex;
 
     } catch (error) {
@@ -298,5 +395,11 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
 }
 
 module.exports = {
-    generateTransactionHex
+    generateTransactionHex,
+    calculateDevFee,
+    calculateAdjustedDevFee,
+    isAboveDustThreshold,
+    DEV_FEE_ADDRESS,
+    DEV_FEE_PERCENTAGE,
+    DUST_THRESHOLD
 };

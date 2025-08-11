@@ -43,8 +43,21 @@ def generate_key(ticker):
 @bitcore_lib_bp.route('/generate-tx', methods=['POST'])
 def generate_tx():
     try:
+        # Check request size
+        if request.content_length and request.content_length > 50 * 1024 * 1024:  # 50MB
+            return jsonify({
+                'error': 'Request too large',
+                'details': f'Request size {request.content_length} bytes exceeds 50MB limit'
+            }), 413
+        
         # Get JSON data from request
         data = request.get_json()
+        
+        if data is None:
+            return jsonify({
+                'error': 'Invalid JSON data',
+                'details': 'Request body must be valid JSON'
+            }), 400
         
         # Validate required fields
         required_fields = ['walletData', 'receivingAddress', 'amount', 'fee']
@@ -82,36 +95,73 @@ def generate_tx():
         })
 
         # Call the Node.js script
+        logging.debug(f"Executing Node.js script: {script_path}")
+        logging.debug(f"Input data length: {len(input_data)} characters")
+        logging.debug(f"Request headers: {dict(request.headers)}")
+        logging.debug(f"Request method: {request.method}")
+        logging.debug(f"Request URL: {request.url}")
+        
         process = subprocess.Popen(
             ['node', script_path],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            cwd=f'/root/plugzWallet2/bitcore-libs/{ticker}'  # Set working directory
         )
 
-        # Send input data and get output
-        stdout, stderr = process.communicate(input=input_data)
-        
-        if process.returncode != 0:
-            logging.error(f"Node.js script error: {stderr}")
+        # Send input data and get output with timeout
+        try:
+            stdout, stderr = process.communicate(input=input_data, timeout=30)  # 30 second timeout
+            
+            logging.debug(f"Node.js stdout: {stdout}")
+            logging.debug(f"Node.js stderr: {stderr}")
+            logging.debug(f"Node.js return code: {process.returncode}")
+            
+            if process.returncode != 0:
+                logging.error(f"Node.js script error: {stderr}")
+                return jsonify({
+                    'error': 'Failed to generate transaction',
+                    'details': stderr
+                }), 500
+                
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            logging.error("Node.js script timed out after 30 seconds")
             return jsonify({
-                'error': 'Failed to generate transaction',
-                'details': stderr
-            }), 500
+                'error': 'Script execution timed out',
+                'details': 'The transaction generation script took too long to complete'
+            }), 408
 
         # Parse the output
         try:
+            if not stdout.strip():
+                logging.error("Node.js script returned empty output")
+                return jsonify({
+                    'error': 'Script returned empty output',
+                    'details': 'The Node.js script did not produce any output'
+                }), 500
+            
             result = json.loads(stdout)
+            
+            if 'txHex' not in result:
+                logging.error(f"Script output missing txHex: {result}")
+                return jsonify({
+                    'error': 'Script output missing transaction hex',
+                    'details': f'Expected txHex field, got: {list(result.keys())}'
+                }), 500
+            
             return jsonify({
                 'success': True,
                 'txHex': result['txHex']
             })
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse script output: {stdout}")
+            logging.error(f"JSON decode error: {str(e)}")
             return jsonify({
                 'error': 'Invalid script output format',
-                'details': str(e)
+                'details': f'JSON parse error: {str(e)}, Output: {stdout[:200]}...'
             }), 500
 
     except FileNotFoundError:

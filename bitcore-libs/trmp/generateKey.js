@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-const bitcore = require('./bitcore-lib-b1t');
-const { PrivateKey, Address } = bitcore;
-const bs58 = require('bs58');
+const dogecore = require('./bitcore-lib-trmp');
+const { PrivateKey, Address } = dogecore;
 
 // Generate a new private key
 const privateKey = new PrivateKey();

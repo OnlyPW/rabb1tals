@@ -138,7 +138,7 @@ export function initializeWallet() {
         if (index === 0) {
           const swipeHint = document.createElement('div');
           swipeHint.className = 'swipe-hint';
-          swipeHint.textContent = 'Swipe left or right to switch coins';
+          swipeHint.textContent = 'Swipe left or right to switch coins. Add to home screen for app-like experience.';
           slide.appendChild(swipeHint);
           setTimeout(() => {
             swipeHint.style.opacity = '0';

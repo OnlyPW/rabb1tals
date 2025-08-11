@@ -251,8 +251,8 @@ describe('Transaction', function() {
 
   // TODO: Migrate this into a test for inputs
 
-  var fromAddress = 'mszYqVnqKoQx4jcTdJXxwKAissE3Jbrrc1';
-  var witnessFromAddress = 'tb1q3rvex84884sw4al9vu00cp2jhyffz8e2n2k4wp';
+  var fromAddress = 'MhpbKJPyRDomPUC98oEiJFvyDxi6f75hPY';
+  var witnessFromAddress = 'tclck1q3rvex84884sw4al9vu00cp2jhyffz8e2n2k4wp';
   var wrappedWitnessFromAddress = '2N2fk5hPbAPaMUs5No2kwy6xLdFL3CjUXMy';
   var simpleUtxoWith100000Satoshis = {
     address: fromAddress,
@@ -271,13 +271,13 @@ describe('Transaction', function() {
   };
   var anyoneCanSpendUTXO = JSON.parse(JSON.stringify(simpleUtxoWith100000Satoshis));
   anyoneCanSpendUTXO.script = new Script().add('OP_TRUE');
-  var toAddress = 'mrU9pEmAx26HcbKVrABvgL7AwA5fjNFoDc';
-  var changeAddress = 'mgBCJAsvzgT2qNNeXsoECg2uPKrUsZ76up';
+  var toAddress = 'MhfuLuJD1jCViBDuedodZDH5xKw1Bkq33f';
+  var changeAddress = 'MeMpFHRNMSM5xreLz3eR2rLY2TyRWLmkhm';
   var changeAddressP2SH = '2N7T3TAetJrSCruQ39aNrJvYLhG1LJosujf';
-  var changeAddressP2WPKH = 'tb1q3rvex84884sw4al9vu00cp2jhyffz8e2n2k4wp';
-  var changeAddressP2WSH = 'tb1qk0jhwmn65dqmlp755a7cff40fnvzsnhzq290kezrfs9d308an3tqlpjvad';
-  var privateKey = 'cSBnVM4xvxarwGQuAfQFwqDg9k5tErHUHzgWsEfD4zdwUasvqRVY';
-  var private1 = '6ce7e97e317d2af16c33db0b9270ec047a91bff3eff8558afb5014afb2bb5976';
+  var changeAddressP2WPKH = 'tclck1q3rvex84884sw4al9vu00cp2jhyffz8e2n2k4wp';
+  var changeAddressP2WSH = 'tclck1qk0jhwmn65dqmlp755a7cff40fnvzsnhzq290kezrfs9d308an3tqlpjvad';
+  var privateKey = 'TNVaZiAGy4za5vgXXSfvRabMLoc487PuhqenEY3USR8AWwm9Q3nQ';
+  var private1 = 'f9d3c37c14f44c9f3a6ae6266116c9a1ad00f94472b0bd3e91e756c81bb8b798';
   var private2 = 'c9b26b0f771a0d2dad88a44de90f05f416b3b385ff1d989343005546a0032890';
   var public1 = new PrivateKey(private1).publicKey;
   var public2 = new PrivateKey(private2).publicKey;

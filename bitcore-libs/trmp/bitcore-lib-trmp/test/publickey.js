@@ -377,10 +377,10 @@ describe('PublicKey', function() {
     // wif private key, address
     // see: https://github.com/bitcoin/bitcoin/blob/master/src/test/key_tests.cpp#L20
     var data = [
-      ['5HxWvvfubhXpYYpS3tJkw6fq9jE9j18THftkZjHHfmFiWtmAbrj', '1QFqqMUD55ZV3PJEJZtaKCsQmjLT6JkjvJ'],
-      ['5KC4ejrDjv152FGwP386VD1i2NYc5KkfSMyv1nGy1VGDxGHqVY3', '1F5y5E5FMc5YzdJtB9hLaUe43GDxEKXENJ'],
-      ['Kwr371tjA9u2rFSMZjTNun2PXXP3WPZu2afRHTcta6KxEUdm1vEw', '1NoJrossxPBKfCHuJXT4HadJrXRE9Fxiqs'],
-      ['L3Hq7a8FEQwJkW1M2GNKDW28546Vp5miewcCzSqUD9kCAXrJdS3g', '1CRj2HyM1CXWzHAXLQtiGLyggNT9WQqsDs']
+      ['Kxgph7fG8ZWdQjScE6MvsZmhpFmUQkKKCQc4JUkjXwHFpQe51VYP', 'ZtL1nSarHaLacP22UmnGqMY6XEKG4ZLFJ'],
+      ['KwWqB8YeAS7HJsSnjGREzTMJ4v8VxuuPRqCfcPqNkh9eVmXMCR3r', 'fBn1X7X6kY3XnRQxh9QCQ2QqTLZmDR7u8'],
+      ['L2X3JdUZYeQdGK3nzUuB4UNKzufpoxM11gQVRWpCeSJ3qnA6scuU', 'YWwHi9x1aByLtTSs5oEbUeevTzxw5MxFS'],
+      ['L25RYcZeovc55rrg7CrR3hx7mVuNv2rdnLcUkXw23KVuDUXNgYNp', 'gP9gw9ZfSqTzSUiWsxf7rv1nJC7HrFHu9']
     ];
     
     data.forEach(function(d){

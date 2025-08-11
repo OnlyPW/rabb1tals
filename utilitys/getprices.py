@@ -20,12 +20,16 @@ coins = [
     { "name": "DOGE", "ticker": "DOGE" },
     { "name": "PEP", "ticker": "PEP" },
     { "name": "SHIC", "ticker": "SHIC" },
+    { "name": "DEV", "ticker": "DEV" },
     { "name": "BONC", "ticker": "BONC" },
     { "name": "FLOP", "ticker": "FLOP" },
     { "name": "DGB", "ticker": "DGB" },
-    { "name": "DEV", "ticker": "DEV" },
-    { "name": "B1T", "ticker": "B1T" },
-    { "name": "XBT", "ticker": "XBT" }
+    { "name": "XBT", "ticker": "XBT" },
+    { "name": "GEMMA", "ticker": "GEMMA" },
+    { "name": "LTC", "ticker": "LTC" },
+    { "name": "JKC", "ticker": "JKC" },
+    { "name": "LKY", "ticker": "LKY" },
+    { "name": "TRMP", "ticker": "TRMP" }
 ]
 
 def requests_retry_session(

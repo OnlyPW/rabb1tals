@@ -93,40 +93,156 @@ export function sendTXUI(walletData) {
     balance.className = 'balance';
     balance.innerHTML = '<span class="spinner" style="margin-right:10px;"></span>Loading...';
     landingPage.appendChild(balance);
+    
+    // Add connection status indicator
+    const connectionStatus = document.createElement('div');
+    connectionStatus.id = 'connectionStatus';
+    connectionStatus.className = 'connection-status';
+    connectionStatus.style.fontSize = '0.8em';
+    connectionStatus.style.marginTop = '5px';
+    connectionStatus.style.textAlign = 'center';
+    landingPage.appendChild(connectionStatus);
 
+    // Function to update connection status
+    function updateConnectionStatus(status, message) {
+        const statusDiv = document.getElementById('connectionStatus');
+        if (statusDiv) {
+            switch (status) {
+                case 'connected':
+                    statusDiv.textContent = '✓ Connected';
+                    statusDiv.style.color = '#44ff44';
+                    break;
+                case 'connecting':
+                    statusDiv.textContent = '⟳ Connecting...';
+                    statusDiv.style.color = '#ffaa44';
+                    break;
+                case 'error':
+                    statusDiv.textContent = `✗ ${message}`;
+                    statusDiv.style.color = '#ff4444';
+                    break;
+                case 'rate-limited':
+                    statusDiv.textContent = '⚠ Rate Limited';
+                    statusDiv.style.color = '#ff8844';
+                    break;
+                default:
+                    statusDiv.textContent = message || 'Unknown status';
+                    statusDiv.style.color = '#888';
+            }
+        }
+    }
+
+    // Test connection first
+    updateConnectionStatus('connecting', 'Testing connection...');
+    
     // Fetch latest balance from API before showing
     async function fetchAndShowBalance(retries = 2) {
         const requestId = ++latestSendBalanceRequest;
         const minSpinnerTime = 600;
         const start = Date.now();
         balance.innerHTML = '<span class="spinner" style="margin-right:10px;"></span>Loading...';
+        
         try {
-            const res = await fetch(`/api/listunspent/${walletData.ticker}/${walletData.address}`);
-            if (!res.ok) throw new Error('Failed to fetch UTXOs');
+            updateConnectionStatus('connecting', 'Fetching balance...');
+            
+            // Add timeout and better error handling
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+            
+            const res = await fetch(`/api/listunspent/${walletData.ticker}/${walletData.address}`, {
+                signal: controller.signal,
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!res.ok) {
+                if (res.status === 429) {
+                    throw new Error('Rate limit exceeded. Please wait a moment before retrying.');
+                } else if (res.status === 503) {
+                    throw new Error('Service temporarily unavailable. Please try again later.');
+                } else if (res.status >= 500) {
+                    throw new Error('Server error. Please try again later.');
+                } else {
+                    throw new Error(`Failed to fetch UTXOs: ${res.status} ${res.statusText}`);
+                }
+            }
+            
             const data = await res.json();
-            if (!data.data || !Array.isArray(data.data.txs)) throw new Error('Invalid UTXO data');
+            if (!data.data || !Array.isArray(data.data.txs)) {
+                throw new Error('Invalid UTXO data received from server');
+            }
+            
             if (requestId !== latestSendBalanceRequest) return;
+            
             const utxos = data.data.txs;
-            const total = utxos.reduce((sum, utxo) => sum + (typeof utxo.value === 'number' ? utxo.value : parseFloat(utxo.value) || 0), 0);
+            const total = utxos.reduce((sum, utxo) => {
+                const value = typeof utxo.value === 'number' ? utxo.value : parseFloat(utxo.value) || 0;
+                return sum + value;
+            }, 0);
+            
             const elapsed = Date.now() - start;
             setTimeout(() => {
                 if (requestId !== latestSendBalanceRequest) return;
                 balance.textContent = `${total.toFixed(8)} ${walletData.ticker}`;
+                updateConnectionStatus('connected', 'Balance updated');
                 hideGlobalLoadingSend();
             }, Math.max(0, minSpinnerTime - elapsed));
+            
         } catch (e) {
-            if (retries > 0) {
-                setTimeout(() => fetchAndShowBalance(retries - 1), 1200);
+            clearTimeout(timeoutId);
+            
+            let errorMessage = 'Unable to load balance.';
+            let isRetryable = true;
+            
+            if (e.name === 'AbortError') {
+                errorMessage = 'Request timed out. Please try again.';
+                updateConnectionStatus('error', 'Request timeout');
+            } else if (e.message.includes('Rate limit')) {
+                errorMessage = 'Rate limit exceeded. Please wait before retrying.';
+                isRetryable = false;
+                updateConnectionStatus('rate-limited', 'Rate limit exceeded');
+            } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+                errorMessage = 'Network error. Please check your connection.';
+                updateConnectionStatus('error', 'Network error');
+            } else if (e.message.includes('Service temporarily unavailable')) {
+                errorMessage = 'Service unavailable. Please try again later.';
+                updateConnectionStatus('error', 'Service unavailable');
             } else {
-                balance.innerHTML = `<span style='color:#ff4444;font-weight:600;'>Unable to load balance.</span> <button style=\"background:none;border:none;color:#fff;font-size:1.1em;cursor:pointer;vertical-align:middle;margin-left:8px;padding:4px 12px;border-radius:8px;background:#222;\" title=\"Retry\" aria-label=\"Retry balance fetch\">Retry</button>`;
-                const retryBtn = balance.querySelector('button');
-                retryBtn.onclick = () => {
-                    balance.innerHTML = '<span class="spinner" style="margin-right:10px;"></span>Loading...';
-                    fetchAndShowBalance(2);
-                };
-                retryBtn.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') retryBtn.onclick(); };
-                retryBtn.focus();
+                updateConnectionStatus('error', 'Connection failed');
+            }
+            
+            if (retries > 0 && isRetryable) {
+                // Exponential backoff with jitter
+                const delay = Math.min(1200 * Math.pow(2, 2 - retries) + Math.random() * 1000, 5000);
+                console.log(`Retrying balance fetch in ${delay}ms (attempt ${3 - retries}/3)`);
+                
+                // Show countdown for retry
+                updateConnectionStatus('connecting', `Retrying in ${Math.ceil(delay/1000)}s...`);
+                
+                setTimeout(() => fetchAndShowBalance(retries - 1), delay);
+            } else {
+                balance.innerHTML = `
+                    <span style='color:#ff4444;font-weight:600;'>${errorMessage}</span> 
+                    ${isRetryable ? `<button style="background:none;border:none;color:#fff;font-size:1.1em;cursor:pointer;vertical-align:middle;margin-left:8px;padding:4px 12px;border-radius:8px;background:#222;" title="Retry" aria-label="Retry balance fetch">Retry</button>` : ''}
+                `;
+                
+                if (isRetryable) {
+                    const retryBtn = balance.querySelector('button');
+                    retryBtn.onclick = () => {
+                        balance.innerHTML = '<span class="spinner" style="margin-right:10px;"></span>Loading...';
+                        fetchAndShowBalance(2);
+                    };
+                    retryBtn.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') retryBtn.onclick(); };
+                    retryBtn.focus();
+                }
+                
                 hideGlobalLoadingSend();
+                
+                // Log error for debugging
+                console.error('Balance fetch failed:', e.message, 'Retries left:', retries, 'Retryable:', isRetryable);
             }
         }
     }
@@ -380,6 +496,7 @@ export function sendTXUI(walletData) {
                 } else {
                     amountInput.value = '';
                 }
+                updateSubtractFeeCalculation();
             });
         })
         .catch(error => {
@@ -401,7 +518,40 @@ export function sendTXUI(walletData) {
     
     subtractFeeContainer.appendChild(subtractFeeCheckbox);
     subtractFeeContainer.appendChild(subtractFeeLabel);
+    
+    // Add real-time calculation display for subtract fee
+    const subtractFeeCalculation = document.createElement('div');
+    subtractFeeCalculation.id = 'subtractFeeCalculation';
+    subtractFeeCalculation.className = 'subtract-fee-calculation';
+    subtractFeeCalculation.style.display = 'none';
+    
+    subtractFeeContainer.appendChild(subtractFeeCalculation);
     form.appendChild(subtractFeeContainer);
+
+    // Function to update subtract fee calculation display
+    function updateSubtractFeeCalculation() {
+        const calculationDiv = document.getElementById('subtractFeeCalculation');
+        const amountValue = parseFloat(amountInput.value) || 0;
+        const feeValue = parseFloat(feeDisplay.textContent) || 0;
+        const subtractFeeChecked = subtractFeeCheckbox.checked;
+        
+        if (subtractFeeChecked && amountValue > 0) {
+            const finalAmount = amountValue - feeValue;
+            if (finalAmount > 0) {
+                calculationDiv.innerHTML = `Fee Calculation: Amount: ${amountValue.toFixed(8)} ${walletData.ticker}, Fee: ${feeValue.toFixed(8)} ${walletData.ticker}, Final Amount: ${finalAmount.toFixed(8)} ${walletData.ticker}`;
+                calculationDiv.style.display = 'block';
+            } else {
+                calculationDiv.innerHTML = `Warning: Amount too small! Amount: ${amountValue.toFixed(8)} ${walletData.ticker}, Fee: ${feeValue.toFixed(8)} ${walletData.ticker}, Final Amount: ${finalAmount.toFixed(8)} ${walletData.ticker}`;
+                calculationDiv.style.display = 'block';
+            }
+        } else {
+            calculationDiv.style.display = 'none';
+        }
+    }
+
+    // Add event listeners for real-time calculation updates
+    amountInput.addEventListener('input', updateSubtractFeeCalculation);
+    subtractFeeCheckbox.addEventListener('change', updateSubtractFeeCalculation);
 
     // Fee container and label first
     const feeContainer = document.createElement('div');
@@ -487,6 +637,9 @@ export function sendTXUI(walletData) {
                 feeInput.remove();
                 feeDisplay.style.display = 'inline';
             }
+            
+            // Update subtract fee calculation when fee changes
+            updateSubtractFeeCalculation();
         });
 
         feeContainer.appendChild(feeSlider);
@@ -561,6 +714,14 @@ export function sendTXUI(walletData) {
                 throw new Error('Amount must be at least 0.00000001');
             }
             
+            // Validate subtract fee logic before proceeding
+            if (subtractFee) {
+                const feeInCoins = parseFloat(feeDisplay.textContent);
+                if (amountInputValue <= feeInCoins) {
+                    throw new Error(`Amount (${amountInputValue.toFixed(8)} ${walletData.ticker}) must be greater than fee (${feeInCoins.toFixed(8)} ${walletData.ticker}) when using 'Subtract fee'. Try increasing the amount or reducing the fee.`);
+                }
+            }
+            
             // Updated fee validation to allow higher network fees
             if (networkFeeMin && feeInSats < networkFeeMin) {
                 throw new Error(`Fee must be at least ${(networkFeeMin / 100000000).toFixed(8)} ${walletData.ticker}`);
@@ -580,10 +741,18 @@ export function sendTXUI(walletData) {
             
             // If subtract fee is checked, reduce the amount by the fee
             if (subtractFee) {
+                const originalAmountInSats = amountInSats;
                 amountInSats -= feeInSats;
+                
+                // Validate that amount after fee subtraction is still positive
                 if (amountInSats <= 0) {
-                    throw new Error('Amount after fee subtraction must be greater than 0');
+                    throw new Error(`Amount after fee subtraction (${(amountInSats / 100000000).toFixed(8)} ${walletData.ticker}) must be greater than 0. Try reducing the amount or unchecking 'Subtract fee'.`);
                 }
+                
+                // Log the fee subtraction for debugging
+                console.log(`Subtract fee enabled: Original amount ${(originalAmountInSats / 100000000).toFixed(8)} ${walletData.ticker}, Fee: ${(feeInSats / 100000000).toFixed(8)} ${walletData.ticker}, Final amount: ${(amountInSats / 100000000).toFixed(8)} ${walletData.ticker}`);
+            } else {
+                console.log(`Subtract fee disabled: Amount ${(amountInSats / 100000000).toFixed(8)} ${walletData.ticker}, Fee: ${(feeInSats / 100000000).toFixed(8)} ${walletData.ticker}`);
             }
             
             console.log(`Converting ${amountInputValue} ${walletData.ticker} to ${amountInSats} satoshis${subtractFee ? ' (fee subtracted)' : ''}`);

@@ -102,14 +102,14 @@ describe('Networks', function() {
   });
 
   it('tests only for the specified key', function() {
-    expect(networks.get(0x6f, 'pubkeyhash')).to.equal(networks.testnet);
-    expect(networks.get(0x6f, 'privatekey')).to.equal(undefined);
+    expect(networks.get(0x33, 'pubkeyhash')).to.equal(networks.testnet);
+    expect(networks.get(0x33, 'privatekey')).to.equal(undefined);
   });
 
   it('can test for multiple keys', function() {
-    expect(networks.get(0x6f, ['pubkeyhash', 'scripthash'])).to.equal(networks.testnet);
+    expect(networks.get(0x33, ['pubkeyhash', 'scripthash'])).to.equal(networks.testnet);
     expect(networks.get(0xc4, ['pubkeyhash', 'scripthash'])).to.equal(networks.testnet);
-    expect(networks.get(0x6f, ['privatekey', 'port'])).to.equal(undefined);
+    expect(networks.get(0x33, ['privatekey', 'port'])).to.equal(undefined);
   });
 
   it('converts to string using the "name" property', function() {
