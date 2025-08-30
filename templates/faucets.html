@@ -7,69 +7,14 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <style>
-      body {
-        font-family: 'Space Grotesk', 'Poppins', sans-serif;
-        background: #0d0d0d;
-        color: #fff;
-        text-align: center;
-        min-height: 100vh;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-      }
-      .faucet-container {
-        width: 100%;
-        max-width: 420px;
-        margin: 0 auto;
-        padding: 2.5rem 1rem 3rem;
-        background: rgba(20,20,20,0.95);
-        border-radius: 24px;
-        box-shadow: 0 4px 32px rgba(0,0,0,0.18);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .faucet-title {
-        font-size: 2.2rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-      }
-      .faucet-subtitle {
-        font-size: 1.1rem;
-        color: #aaa;
-        margin-bottom: 2.2rem;
-      }
-      .faucet-links {
-        display: flex;
-        flex-direction: column;
-        gap: 1.2rem;
-        width: 100%;
-        margin-bottom: 1.5rem;
-      }
-      .faucet-link {
-        display: block;
-        padding: 16px;
-        background: #1a1a1a;
-        border: 1px solid #333;
-        border-radius: 14px;
-        color: #fff;
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 1.1rem;
-        transition: all 0.25s ease;
-      }
-      .faucet-link:hover {
-        background: #2c2c2c;
-        box-shadow: 0 0 10px rgba(255,255,255,0.1);
-        transform: translateY(-2px);
-      }
-      @media (max-width: 500px) {
-        .faucet-title { font-size: 1.5rem; }
-        .faucet-container { padding: 1.2rem 0.5rem 2rem; }
-        .faucet-link { font-size: 1rem; padding: 12px; }
-      }
+      body { font-family: 'Space Grotesk', 'Poppins', sans-serif; background: #0d0d0d; color: #fff; text-align: center; min-height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      .faucet-container { width: 100%; max-width: 420px; margin: 0 auto; padding: 2.5rem 1rem 3rem; background: rgba(20,20,20,0.95); border-radius: 24px; box-shadow: 0 4px 32px rgba(0,0,0,0.18); display: flex; flex-direction: column; align-items: center; }
+      .faucet-title { font-size: 2.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+      .faucet-subtitle { font-size: 1.1rem; color: #aaa; margin-bottom: 2.2rem; }
+      .faucet-links { display: flex; flex-direction: column; gap: 1.2rem; width: 100%; margin-bottom: 1.5rem; }
+      .faucet-link { display: block; padding: 16px; background: #1a1a1a; border: 1px solid #333; border-radius: 14px; color: #fff; text-decoration: none; font-weight: 500; font-size: 1.1rem; transition: all 0.25s ease; }
+      .faucet-link:hover { background: #2c2c2c; box-shadow: 0 0 10px rgba(255,255,255,0.1); transform: translateY(-2px); }
+      @media (max-width: 500px) { .faucet-title { font-size: 1.5rem; } .faucet-container { padding: 1.2rem 0.5rem 2rem; } .faucet-link { font-size: 1rem; padding: 12px; } }
     </style>
 </head>
 <body>
@@ -78,53 +23,10 @@
     </a>
     <div class="faucet-container">
         <div class="faucet-title">Faucets</div>
-        <div class="faucet-subtitle">Get free coins for your favorite networks</div>
+        <div class="faucet-subtitle">Claim test coins (if available)</div>
         <div class="faucet-links">
-            <a href="https://pepeblocks.com/faucet" class="faucet-link" id="pep-explorer" target="_blank">PEP Faucet</a>
-            <a href="https://boncfaucet.bonkscoin.io/" class="faucet-link" id="bonc-explorer" target="_blank">BONC Faucet</a>
-            <a href="https://faucet.flopcoin.net/" class="faucet-link" id="flop-explorer" target="_blank">FLOP Faucet</a>
-            <a href="#" class="faucet-link" id="dev-faucet-options">DEV Faucet Options</a>
+            <a href="#" class="faucet-link" id="b1t-faucet">B1T Faucet (coming soon)</a>
         </div>
     </div>
-    <div id="dev-options-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:9999; align-items:center; justify-content:center;">
-      <div style="background:#18181b; color:#fff; border-radius:18px; max-width:95vw; width:370px; margin:auto; padding:2.2rem 1.2rem 1.5rem 1.2rem; box-shadow:0 4px 32px rgba(0,0,0,0.18); display:flex; flex-direction:column; align-items:center; position:relative;">
-        <button id="dev-options-modal-close" style="position:absolute; top:12px; right:18px; background:none; border:none; color:#fff; font-size:2rem; cursor:pointer;">&times;</button>
-        <div style="font-size:1.35rem; font-weight:700; margin-bottom:1.2rem;">DEV Faucet Options</div>
-        <div style="width:100%; display:flex; flex-direction:column; gap:1.5rem;">
-          <div style="background:#23232a; border-radius:14px; padding:1.2rem 1rem; margin-bottom:0.5rem; display:flex; flex-direction:column; align-items:center;">
-            <div style="font-size:1.1rem; font-weight:600; margin-bottom:0.5rem;">Get $DEV via Discord</div>
-            <div style="font-size:1rem; color:#aaa; margin-bottom:1.1rem; text-align:center;">Join $DEV Discord and create a Gemma wallet for free $DEV</div>
-            <a href="https://discord.gg/9VY8Vjrs23" target="_blank" style="display:inline-block; background:#5865F2; color:#fff; font-weight:600; font-size:1.05rem; border-radius:10px; padding:10px 22px; text-decoration:none; margin-bottom:0.2rem; transition:background 0.18s;">Join Discord</a>
-          </div>
-          <div style="background:#23232a; border-radius:14px; padding:1.2rem 1rem; display:flex; flex-direction:column; align-items:center;">
-            <div style="font-size:1.1rem; font-weight:600; margin-bottom:0.5rem;">DEV Faucet on XeggeX</div>
-            <div style="font-size:1rem; color:#aaa; margin-bottom:1.1rem; text-align:center;">You need a XeggeX account to claim from this faucet.<br>Sign up or log in, then visit the faucet page.</div>
-            <a href="https://xeggex.com/faucet" target="_blank" style="display:inline-block; background:#5865F2; color:#fff; font-weight:600; font-size:1.05rem; border-radius:10px; padding:10px 22px; text-decoration:none; margin-bottom:0.2rem; transition:background 0.18s;">Go to XeggeX Faucet</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <script>
-      document.getElementById('dev-faucet-options').onclick = function(e) {
-        e.preventDefault();
-        document.getElementById('dev-options-modal').style.display = 'flex';
-      };
-      document.getElementById('dev-options-modal-close').onclick = function() {
-        document.getElementById('dev-options-modal').style.display = 'none';
-      };
-      document.getElementById('dev-options-modal').onclick = function(e) {
-        if (e.target === this) this.style.display = 'none';
-      };
-      document.getElementById('xeggex-explorer').onclick = function(e) {
-        e.preventDefault();
-        document.getElementById('xeggex-modal').style.display = 'flex';
-      };
-      document.getElementById('xeggex-modal-close').onclick = function() {
-        document.getElementById('xeggex-modal').style.display = 'none';
-      };
-      document.getElementById('xeggex-modal').onclick = function(e) {
-        if (e.target === this) this.style.display = 'none';
-      };
-    </script>
 </body>
-</html> 
+</html>

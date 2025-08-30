@@ -24,24 +24,53 @@ export function mintImageUI(selectedWallet) {
     title.className = 'page-title';
     landingPage.appendChild(title);
 
+    // --- UTXO filters ---
+    // Default minimum UTXO based on dust-safe output (0.001 = 100k sats)
+    const MIN_UTXO = 0.001;
+
+    // Toggle to include 0-conf UTXOs (enabled by default for convenience)
+    const toggleContainer = document.createElement('div');
+    toggleContainer.style.margin = '8px 0 12px 0';
+    const includeZeroConf = document.createElement('input');
+    includeZeroConf.type = 'checkbox';
+    includeZeroConf.id = 'include-zero-conf';
+    includeZeroConf.checked = true;
+    const toggleLabel = document.createElement('label');
+    toggleLabel.setAttribute('for', 'include-zero-conf');
+    toggleLabel.style.marginLeft = '8px';
+    toggleLabel.textContent = 'Include unconfirmed (0-conf) UTXOs';
+    toggleContainer.appendChild(includeZeroConf);
+    toggleContainer.appendChild(toggleLabel);
+    landingPage.appendChild(toggleContainer);
+
     // UTXO selection dropdown
     const utxoDropdown = document.createElement('select');
     utxoDropdown.className = 'wallet-selector';
-    if (selectedWallet.utxos && selectedWallet.utxos.length > 0) {
-        selectedWallet.utxos
-            .filter(utxo => parseFloat(utxo.value) > 0.01 && utxo.confirmations >= 1)
-            .forEach(utxo => {
-                const option = document.createElement('option');
-                option.value = `${utxo.txid}:${utxo.vout}`;
-                option.textContent = `${utxo.value} ${selectedWallet.ticker}`;
-                utxoDropdown.appendChild(option);
-            });
-        if (selectedWallet.utxos.filter(utxo => parseFloat(utxo.value) > 0.01 && utxo.confirmations >= 1).length === 0) {
-            utxoDropdown.innerHTML = '<option disabled selected>No UTXOs available above 0.01 with sufficient confirmations</option>';
+
+    function populateUtxoDropdown() {
+        utxoDropdown.innerHTML = '';
+        if (selectedWallet.utxos && selectedWallet.utxos.length > 0) {
+            const filtered = selectedWallet.utxos
+                .filter(utxo => parseFloat(utxo.value) >= MIN_UTXO && (includeZeroConf.checked || utxo.confirmations >= 1));
+
+            if (filtered.length > 0) {
+                filtered.forEach(utxo => {
+                    const option = document.createElement('option');
+                    option.value = `${utxo.txid}:${utxo.vout}`;
+                    option.textContent = `${utxo.value} ${selectedWallet.ticker} (${utxo.confirmations} conf)`;
+                    utxoDropdown.appendChild(option);
+                });
+            } else {
+                utxoDropdown.innerHTML = `<option disabled selected>No UTXOs available ≥ ${MIN_UTXO} with ${includeZeroConf.checked ? 'any' : '1+'} confirmation(s)</option>`;
+            }
+        } else {
+            utxoDropdown.innerHTML = '<option disabled selected>No UTXOs available</option>';
         }
-    } else {
-        utxoDropdown.innerHTML = '<option disabled selected>No UTXOs available</option>';
     }
+
+    populateUtxoDropdown();
+    includeZeroConf.addEventListener('change', populateUtxoDropdown);
+
     landingPage.appendChild(utxoDropdown);
 
     // File input and button
@@ -218,7 +247,21 @@ export function mintImageUI(selectedWallet) {
             });
 
             if (!apiResponse.ok) {
-                throw new Error(`HTTP error! status: ${apiResponse.status}`);
+                let errMsg = `HTTP error! status: ${apiResponse.status}`;
+                try {
+                    const errText = await apiResponse.text();
+                    if (errText) {
+                        try {
+                            const errJson = JSON.parse(errText);
+                            errMsg = errJson.message || errJson.error || JSON.stringify(errJson);
+                        } catch (parseErr) {
+                            errMsg = errText;
+                        }
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                throw new Error(errMsg);
             }
 
             const data = await apiResponse.json();
@@ -305,4 +348,4 @@ export function mintImageUI(selectedWallet) {
         }
         return result.toUpperCase();
     }
-} 
+}

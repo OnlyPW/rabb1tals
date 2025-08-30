@@ -1,7 +1,7 @@
 {
-  "name": "Plugz Wallet",
-  "short_name": "Plugz",
-  "description": "A cryptocurrency wallet for managing digital assets",
+  "name": "B1T Wallet",
+  "short_name": "B1T",
+  "description": "Self-custodial wallet for the B1T network",
   "start_url": "/wallet",
   "display": "standalone",
   "orientation": "portrait",

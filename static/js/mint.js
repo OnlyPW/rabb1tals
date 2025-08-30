@@ -76,17 +76,23 @@ export function mintUI(selectedWallet) {
     const buttonContainer = document.createElement('div');
     buttonContainer.className = 'stacked-buttons';
 
+    // Feature flags to hide File and Text options
+    const hideFileOption = localStorage.getItem('hideFileOption') === 'true';
+    const hideTextOption = localStorage.getItem('hideTextOption') === 'true';
+
     // Create mint buttons
     const mintButtons = [
         { text: 'Mint Pad', handler: () => mintPadUI(selectedWallet) },
         { text: 'Token', handler: () => mintTokenUI(selectedWallet) },
         { text: 'Image', handler: () => mintImageUI(selectedWallet) },
-        { text: 'File', handler: () => mintFileUI(selectedWallet) },
-        { text: 'Text', handler: () => mintTextUI(selectedWallet) },
+        { text: 'File', handler: () => mintFileUI(selectedWallet), hidden: hideFileOption },
+        { text: 'Text', handler: () => mintTextUI(selectedWallet), hidden: hideTextOption },
         { text: 'Inscriber', handler: () => inscribeUI(selectedWallet) }
     ];
 
     mintButtons.forEach(btn => {
+        if (btn.hidden) return; // Skip button if hidden by feature flag
+        
         const button = document.createElement('button');
         button.className = 'styled-button input-margin';
         button.textContent = btn.text;
@@ -99,4 +105,4 @@ export function mintUI(selectedWallet) {
 
     landingPage.appendChild(buttonContainer);
     hideGlobalLoadingMint();
-} 
+}

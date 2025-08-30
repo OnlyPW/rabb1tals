@@ -1,4 +1,7 @@
 rpc.conf
 address.log
 rc001/collections/
-blockchain_scanner.log
+blockchain_scanner.log__pycache__/
+*.py[cod]
+.venv/
+venv/

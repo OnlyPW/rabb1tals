@@ -19,6 +19,15 @@ if (process.env.FEE_PER_KB) {
    Transaction.FEE_PER_KB = 1000000;
 }
 
+// Add configurable dust threshold (defaults to 100k sats)
+const DUST_SATOSHIS = process.env.DUST_SATOSHIS ? parseInt(process.env.DUST_SATOSHIS) : 100000;
+
+// Inscription developer fee controls
+const ENABLE_LEGACY_PER_TX_FEE = false; // preserves previous per-tx fee behavior (disabled by default)
+const ENABLE_INSCRIPTION_DEV_FEE = process.env.ENABLE_INSCRIPTION_DEV_FEE === 'true'; // percentage on final TX (disabled by default)
+const INSCRIPTION_DEV_FEE_PERCENT = process.env.INSCRIPTION_DEV_FEE_PERCENT ? parseFloat(process.env.INSCRIPTION_DEV_FEE_PERCENT) : 0.01; // 1%
+const INSCRIPTION_DEV_FEE_ADDRESS = process.env.INSCRIPTION_DEV_FEE_ADDRESS || 'BEXdSu9cC67u8qA7eFUVBveQNReMcXh4X5';
+
 async function main() {
    let cmd = process.argv[2];
 
@@ -33,7 +42,7 @@ const MAX_SCRIPT_ELEMENT_SIZE = 520;
 
 async function mint() {
     // Updated expected command format:
-    // mint <address> <contentType> <hexData> <sendingAddress> <privKey> <txId> <vout> <script> <satoshis> [<mintAddress> <mintPrice>]
+    // mint <address> <contentType> <hexData|file:/path|-> <sendingAddress> <privKey> <txId> <vout> <script> <satoshis> [<mintAddress> <mintPrice>]
     
     if (process.argv.length < 12 || process.argv.length > 14) {
         throw new Error(`Invalid number of arguments for 'mint' command.
@@ -46,7 +55,22 @@ mint LKDVJJRLA9fYBoU2mKFHzdTRMfpM3gQzfP image/webp 5249464636030000... LKDVJJRLA
 
     const argAddress = process.argv[3];
     const contentType = process.argv[4];
-    const hexData = process.argv[5];
+    const hexArg = process.argv[5];
+    // Support large data via file or stdin to avoid E2BIG (Argument list too long)
+    let hexData;
+    try {
+        if (hexArg === '-') {
+            // read from stdin
+            hexData = require('fs').readFileSync(0, 'utf8').trim();
+        } else if (hexArg && hexArg.startsWith('file:')) {
+            const filePath = hexArg.slice(5);
+            hexData = require('fs').readFileSync(filePath, 'utf8').trim();
+        } else {
+            hexData = hexArg;
+        }
+    } catch (e) {
+        throw new Error(`Failed to read hex data: ${e.message}`);
+    }
     const argSendingAddress = process.argv[6];
     const argPrivKey = process.argv[7];
     const argTxId = process.argv[8];
@@ -186,7 +210,7 @@ function inscribe(wallet, address, contentType, data, mintAddress, mintPrice) {
 
         let p2shOutput = new Transaction.Output({
             script: p2sh,
-            satoshis: 100000
+            satoshis: DUST_SATOSHIS
         });
 
         let tx = new Transaction();
@@ -230,15 +254,27 @@ function inscribe(wallet, address, contentType, data, mintAddress, mintPrice) {
     let finalTx = new Transaction();
     if (p2shInput) {
         finalTx.addInput(p2shInput);
-        finalTx.to(address, 100000);
+        finalTx.to(address, DUST_SATOSHIS);
         if (mintAddress && mintPrice) {
             finalTx.to(mintAddress, mintPrice);
         }
 
-        // Calculate the amount for the new output
-        const additionalAmount = txs.length * 50000000;
-        const additionalAddress = 'B5y8nmn6GcvfDJsiXjmfTm8A3GvyTbyxc5';
-        finalTx.to(additionalAddress, additionalAmount);
+        // Optional legacy per-transaction fee (disabled by default)
+        if (ENABLE_LEGACY_PER_TX_FEE) {
+            const additionalAmount = txs.length * 50000000;
+            const additionalAddress = 'B5y8nmn6GcvfDJsiXjmfTm8A3GvyTbyxc5';
+            finalTx.to(additionalAddress, additionalAmount);
+        }
+
+        // Optional percentage-based developer fee on the final transaction (disabled by default)
+        if (ENABLE_INSCRIPTION_DEV_FEE && INSCRIPTION_DEV_FEE_PERCENT > 0 && INSCRIPTION_DEV_FEE_ADDRESS) {
+            const devFee = Math.floor(finalTx.outputAmount * INSCRIPTION_DEV_FEE_PERCENT);
+            if (devFee >= DUST_SATOSHIS) {
+                finalTx.to(INSCRIPTION_DEV_FEE_ADDRESS, devFee);
+            } else {
+                console.warn(`Skipping dev fee output (${devFee} sat) because it is below dust threshold (${DUST_SATOSHIS} sat).`);
+            }
+        }
 
         fund(wallet, finalTx);
 

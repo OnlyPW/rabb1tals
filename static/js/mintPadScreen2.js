@@ -54,6 +54,23 @@ export function mintPadScreen2UI(selectedWallet) {
     addressInput.className = 'styled-input';
     landingPage.appendChild(addressInput);
 
+    // Fee selector (sat/vB)
+    const feeInfo = document.createElement('p');
+    feeInfo.className = 'styled-text';
+    feeInfo.style.margin = '8px 20px 0';
+    feeInfo.style.opacity = '0.9';
+    feeInfo.textContent = 'Gebühr (sat/vB). Diese Fee wird beim Erzeugen der Transaktionen verwendet.';
+    landingPage.appendChild(feeInfo);
+
+    const feeInput = document.createElement('input');
+    feeInput.type = 'number';
+    feeInput.min = '0.5';
+    feeInput.step = '0.1';
+    feeInput.value = '1.0';
+    feeInput.placeholder = 'z.B. 1.0';
+    feeInput.className = 'styled-input';
+    landingPage.appendChild(feeInput);
+
     // Inscribe button
     const inscribeButton = document.createElement('button');
     inscribeButton.textContent = 'Inscribe';
@@ -83,6 +100,9 @@ export function mintPadScreen2UI(selectedWallet) {
             const mintPrice = parseFloat(pendingCollectionDetails.mint_price);
             const mintAddress = pendingCollectionDetails.mint_address;
 
+            const feeSatPerVb = parseFloat(feeInput.value || '1.0');
+            const feePerKb = Math.max(1, Math.round(feeSatPerVb * 1000)); // convert to sat/kB as backend expects
+
             const requestBody = {
                 receiving_address: receivingAddress,
                 meme_type: pendingHexData.mimeType,
@@ -92,7 +112,8 @@ export function mintPadScreen2UI(selectedWallet) {
                 utxo: selectedUtxo.txid,
                 vout: selectedUtxo.vout,
                 script_hex: selectedUtxo.script_hex,
-                utxo_amount: selectedUtxo.value
+                utxo_amount: selectedUtxo.value,
+                fee_per_kb: feePerKb
             };
 
             if (mintPrice > 0) {

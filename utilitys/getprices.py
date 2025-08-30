@@ -17,15 +17,7 @@ BITCOINTRY_API_URL = "https://api.bitcointry.com/api/v1/summary"
 
 # Manually extracted JSON data from networks.js
 coins = [
-    { "name": "DOGE", "ticker": "DOGE" },
-    { "name": "PEP", "ticker": "PEP" },
-    { "name": "SHIC", "ticker": "SHIC" },
-    { "name": "BONC", "ticker": "BONC" },
-    { "name": "FLOP", "ticker": "FLOP" },
-    { "name": "DGB", "ticker": "DGB" },
-    { "name": "DEV", "ticker": "DEV" },
-    { "name": "B1T", "ticker": "B1T" },
-    { "name": "XBT", "ticker": "XBT" }
+    { "name": "B1T", "ticker": "B1T" }
 ]
 
 def requests_retry_session(

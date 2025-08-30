@@ -119,20 +119,25 @@ class BlockchainScanner:
                 conn.close()
 
     def load_last_block_heights(self) -> Dict[str, Dict[str, int]]:
-        """Load the last scanned block heights for all coins"""
+        """Load the last scanned block heights, restricted to B1T only"""
+        allowed_ticker = "B1T"
+        data: Dict[str, Dict[str, int]] = {}
         try:
             with open(LAST_BLOCK_FILE, 'r') as f:
-                return json.load(f)
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    data = loaded
+                else:
+                    data = {}
         except (FileNotFoundError, json.JSONDecodeError):
             logger.warning("Last block file not found or invalid, using defaults")
-            return {
-                "DOGE": {"start_block_height": 5455286, "last_block_height": 5455285},
-                "PEP": {"start_block_height": 0, "last_block_height": 0},
-                "SHIC": {"start_block_height": 0, "last_block_height": 0},
-                "DEV": {"start_block_height": 0, "last_block_height": 0},
-                "BONC": {"start_block_height": 0, "last_block_height": 0},
-                "DGB": {"start_block_height": 5455286, "last_block_height": 5455285}
-            }
+            data = {}
+
+        # Ensure B1T exists with sane defaults and prune all others
+        if allowed_ticker not in data or not isinstance(data.get(allowed_ticker), dict):
+            data[allowed_ticker] = {"start_block_height": 0, "last_block_height": 0}
+
+        return {allowed_ticker: data[allowed_ticker]}
 
     def update_last_block_heights(self, block_heights: Dict[str, Dict[str, int]]) -> None:
         """Update the last scanned block heights for all coins"""

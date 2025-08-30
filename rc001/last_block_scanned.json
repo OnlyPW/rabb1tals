@@ -1,26 +1,6 @@
 {
-    "DOGE": {
-        "start_block_height": 5455322,
-        "last_block_height": 5665070
-    },
-    "PEP": {
-        "start_block_height": 422575,
-        "last_block_height": 492309
-    },
-    "SHIC": {
-        "start_block_height": 83675,
-        "last_block_height": 153660
-    },
-    "DEV": {
-        "start_block_height": 34901,
-        "last_block_height": 105939
-    },
-    "BONC": {
-        "start_block_height": 60319,
-        "last_block_height": 130546
-    },
-    "DGB": {
-        "start_block_height": 20906489,
-        "last_block_height": 21198246
+    "B1T": {
+        "start_block_height": 0,
+        "last_block_height": 69757
     }
 }

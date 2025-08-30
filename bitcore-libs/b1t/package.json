@@ -1,0 +1,23 @@
+{
+  "name": "b1t",
+  "version": "1.0.0",
+  "description": "",
+  "main": "generateKey.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bech32": "^2.0.0",
+    "bn.js": "^5.2.2",
+    "bs58": "^4.0.1",
+    "buffer-compare": "^1.1.1",
+    "dotenv": "^17.2.1",
+    "elliptic": "^6.6.1",
+    "inherits": "^2.0.1",
+    "lodash": "^4.17.21",
+    "mime-types": "^3.0.1"
+  }
+}

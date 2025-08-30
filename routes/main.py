@@ -47,3 +47,8 @@ def debug_receive():
     data = request.get_json()
     print(f"[DEBUG] Receive button pressed: {data}")
     return {'status': 'ok'}, 200
+
+# New route to serve branding images from /root/Images
+@main_bp.route('/Images/<path:filename>')
+def serve_brand_images(filename):
+    return send_from_directory('/root/Images', filename)

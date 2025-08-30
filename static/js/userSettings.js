@@ -38,6 +38,14 @@ export function userSettingsUI(selectedWallet) {
     title.className = 'page-title';
     landingPage.appendChild(title);
 
+    // Create info paragraph for broadcast behaviour
+    const info = document.createElement('p');
+    info.className = 'styled-text';
+    info.style.margin = '8px 20px 16px';
+    info.style.opacity = '0.85';
+    info.innerHTML = 'Hinweis: Beim reinen Broadcast ist die Fee schon in der signierten Transaktion festgelegt. Möchtest du eine andere Fee, musst du die Transaktionen mit dieser Fee neu erzeugen (oder per CPFP-Booster beschleunigen).';
+    landingPage.appendChild(info);
+
     // Create buttons array
     const settingsButtons = [
         {
@@ -57,6 +65,65 @@ export function userSettingsUI(selectedWallet) {
                     localStorage.setItem('mintResponse', JSON.stringify({ pendingTransactions: [] }));
                     console.log('Pending transactions cleared');
                     alert('Pending transactions have been cleared');
+                }
+            }
+        },
+        {
+            text: 'Broadcast Pending Transactions',
+            onClick: async () => {
+                try {
+                    // Prefer structured mintResponse.pendingTransactions, fallback to transactionHexes
+                    const mintResponse = JSON.parse(localStorage.getItem('mintResponse') || '{}');
+                    let rawHexes = [];
+                    if (Array.isArray(mintResponse?.pendingTransactions) && mintResponse.pendingTransactions.length > 0) {
+                        rawHexes = mintResponse.pendingTransactions.map(tx => tx.hex).filter(Boolean);
+                    }
+                    if (rawHexes.length === 0) {
+                        const txHexes = JSON.parse(localStorage.getItem('transactionHexes') || '[]');
+                        if (Array.isArray(txHexes)) rawHexes = txHexes.filter(Boolean);
+                    }
+
+                    if (rawHexes.length === 0) {
+                        alert('Keine ausstehenden Transaktionen gefunden.');
+                        return;
+                    }
+
+                    const confirmSend = confirm(`Jetzt ${rawHexes.length} Transaktion(en) senden?`);
+                    if (!confirmSend) return;
+
+                    // Build payload for backend endpoint
+                    const payload = { raw_txs: rawHexes };
+
+                    // Only B1T supported by backend for now
+                    const res = await fetch('/rc001/broadcast_pending/b1t', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const text = await res.text();
+                    let data;
+                    try { data = JSON.parse(text); } catch (e) { data = { status: 'error', message: text }; }
+
+                    if (!res.ok || data.status !== 'success') {
+                        console.error('Broadcast error:', data);
+                        alert(`Fehler beim Senden: ${data.message || 'Serverfehler'}`);
+                        return;
+                    }
+
+                    // Present concise results
+                    if (Array.isArray(data.results)) {
+                        const lines = data.results.map((r, i) => `#${i+1} — ${r.success ? 'OK' : 'FEHLER'} — ${r.txid || r.error || ''}`);
+                        alert(`Broadcast Ergebnis:\n${lines.join('\n')}`);
+                    } else if (Array.isArray(data.broadcastResults)) {
+                        const lines = data.broadcastResults.map((r, i) => `#${i+1} — ${r.success ? 'OK' : 'FEHLER'} — ${r.txid || r.error || ''}`);
+                        alert(`Broadcast Ergebnis:\n${lines.join('\n')}`);
+                    } else {
+                        alert('Broadcast abgeschlossen.');
+                    }
+                } catch (err) {
+                    console.error('Broadcast exception:', err);
+                    alert(`Unerwarteter Fehler: ${err?.message || err}`);
                 }
             }
         }
@@ -84,4 +151,4 @@ export function userSettingsUI(selectedWallet) {
         coinIcon.className = 'coin-icon';
         landingPage.appendChild(coinIcon);
     }
-} 
+}

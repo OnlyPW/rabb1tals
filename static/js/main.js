@@ -65,15 +65,16 @@ export function initializeWallet() {
         const header = document.createElement('div');
         header.className = 'header';
 
-        // Blockchainplugz.com button (centered in header)
-        const plugzBtn = document.createElement('a');
-        plugzBtn.href = 'https://blockchainplugz.com/';
-        plugzBtn.target = '_blank';
-        plugzBtn.textContent = 'Blockchainplugz.com';
-        plugzBtn.className = 'plugz-link-btn';
-        // Use flex: 1 to center in header
-        plugzBtn.style.flex = '1';
-        plugzBtn.style.textAlign = 'center';
+        // Center brand logo in header instead of external link
+        const brandLogo = document.createElement('img');
+        brandLogo.src = '/Images/Logo.png';
+        brandLogo.alt = 'B1T Logo';
+        brandLogo.className = 'header-logo';
+        brandLogo.style.flex = '1';
+        brandLogo.style.height = '28px';
+        brandLogo.style.objectFit = 'contain';
+        brandLogo.style.pointerEvents = 'none';
+        brandLogo.style.margin = '0 auto';
 
         const maleIcon = document.createElement('button');  // Changed from img to button
         maleIcon.className = 'back-button';  // Use the same class as back button
@@ -112,7 +113,7 @@ export function initializeWallet() {
         });
 
         header.appendChild(maleIcon);
-        header.appendChild(plugzBtn);
+        header.appendChild(brandLogo);
         header.appendChild(settingsButton);
         slide.appendChild(header);
 
@@ -386,8 +387,15 @@ function updateWalletData(ticker, walletLabel, balanceElement) {
     const selectedWallet = wallets.find(wallet => wallet.label === walletLabel && wallet.ticker === ticker);
     if (!selectedWallet) return;
 
-    fetch(`/api/listunspent/${ticker}/${selectedWallet.address}`)
-        .then(response => response.json())
+    // Ensure B1T address is imported into backend wallet once to make listunspent/getlasttransactions work reliably
+    importAddressIfNeeded(ticker, selectedWallet.address);
+
+    // Use a cached + rate-limited fetch to avoid hammering the API and hitting 429
+    fetchListUnspentRateLimited(ticker, selectedWallet.address, {
+        onRateLimit: (waitMs) => {
+            if (balanceElement) balanceElement.textContent = `Rate limited — retrying in ${(Math.ceil(waitMs/1000))}s...`;
+        }
+    })
         .then(data => {
             if (data.status === 'success') {
                 // Calculate total balance and incoming (unconfirmed) amount
@@ -433,7 +441,10 @@ function updateWalletData(ticker, walletLabel, balanceElement) {
                     if (slide) {
                         const transactionHistory = slide.querySelector('.transaction-history');
                         if (transactionHistory) {
-                            transactionHistory.innerHTML = '<div class="transaction">Loading transactions...</div>';
+                            // Only show the loading placeholder if the list is empty to avoid flicker
+                            if (!transactionHistory.children || transactionHistory.children.length === 0) {
+                                transactionHistory.innerHTML = '<div class="transaction">Loading transactions...</div>';
+                            }
                             fetchAndDisplayTransactions(ticker, selectedWallet.address, transactionHistory);
                         }
                     }
@@ -463,13 +474,155 @@ function updateWalletData(ticker, walletLabel, balanceElement) {
             }
         })
         .catch(error => {
-            console.error('Error fetching unspent transactions:', error);
-            balanceElement.textContent = 'Error loading balance';
+            // Downgrade noise for rate limits, keep console clean
+            const msg = String(error && error.message || '').toLowerCase();
+            if (msg.includes('rate limit')) {
+                console.warn('ListUnspent rate limited; will retry automatically.');
+                balanceElement.textContent = 'Rate limited — retrying soon...';
+            } else {
+                console.error('Error fetching unspent transactions:', error);
+                balanceElement.textContent = 'Error loading balance';
+            }
         });
 }
 
+// Deduplicate rapid history loads per address to avoid spamming transaction details
+const __historyFetchCooldown = new Map(); // key -> last timestamp
 function fetchAndDisplayTransactions(ticker, address, transactionHistoryContainer) {
+    const key = `${ticker}-${address}`;
+    const now = Date.now();
+    const last = __historyFetchCooldown.get(key) || 0;
+    const COOLDOWN_MS = 12000; // 12s soft cooldown
+    if (now - last < COOLDOWN_MS) {
+        return; // Skip redundant refreshes during cooldown window
+    }
+    __historyFetchCooldown.set(key, now);
     displayTransactionHistory(ticker, address, transactionHistoryContainer);
+}
+
+// --- Simple in-memory + localStorage cached, rate-limited fetch for listunspent ---
+const listUnspentPending = new Map(); // key -> Promise
+const listUnspentLimiter = new Map(); // key -> { nextAvailableAt, backoff }
+const listUnspentGlobalLimiter = { nextAvailableAt: 0, backoff: 1000 }; // shared global backoff across wallets
+const LISTUNSPENT_CACHE_TTL = 20000; // 20s fresh cache
+const LISTUNSPENT_STALE_IF_ERROR_TTL = 300000; // up to 5 minutes stale on errors
+
+function cacheKeyLU(ticker, address) { return `lu_cache_${ticker}_${address}`; }
+
+async function fetchListUnspentRateLimited(ticker, address, { maxRetries = 3, onRateLimit } = {}) {
+    const key = `${ticker}-${address}`;
+
+    // Serve from cache if fresh
+    try {
+        const raw = localStorage.getItem(cacheKeyLU(ticker, address));
+        if (raw) {
+            const { ts, data } = JSON.parse(raw);
+            if (Date.now() - ts < LISTUNSPENT_CACHE_TTL) {
+                return data;
+            }
+        }
+    } catch (e) {}
+
+    // De-duplicate in-flight requests
+    if (listUnspentPending.has(key)) return listUnspentPending.get(key);
+
+    const limiter = listUnspentLimiter.get(key) || { nextAvailableAt: 0, backoff: 800 };
+
+    const doFetch = (attempt = 0) => new Promise(async (resolve, reject) => {
+        // Respect both per-key and global backoff
+        const waitKey = Math.max(0, limiter.nextAvailableAt - Date.now());
+        const waitGlobal = Math.max(0, listUnspentGlobalLimiter.nextAvailableAt - Date.now());
+        const wait = Math.max(waitKey, waitGlobal);
+        if (wait > 0) {
+            if (onRateLimit) onRateLimit(wait);
+            await new Promise(r => setTimeout(r, wait));
+        }
+        try {
+            const res = await fetch(`/api/listunspent/${ticker}/${address}`);
+            if (res.status === 429) {
+                const retryAfterHeader = res.headers.get('Retry-After');
+                const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : NaN;
+                const delay = Number.isFinite(retryAfter) ? retryAfter : Math.max(limiter.backoff, listUnspentGlobalLimiter.backoff);
+                // Exponential backoff with caps
+                limiter.backoff = Math.min(Math.max(800, delay) * 2, 20000);
+                limiter.nextAvailableAt = Date.now() + delay;
+                listUnspentLimiter.set(key, limiter);
+                listUnspentGlobalLimiter.backoff = Math.min(Math.max(1000, delay) * 2, 25000);
+                listUnspentGlobalLimiter.nextAvailableAt = Date.now() + delay;
+                if (onRateLimit) onRateLimit(delay);
+
+                if (attempt >= maxRetries) {
+                    // Try to serve stale cache on final failure
+                    try {
+                        const raw = localStorage.getItem(cacheKeyLU(ticker, address));
+                        if (raw) {
+                            const { ts, data } = JSON.parse(raw);
+                            if (Date.now() - ts < LISTUNSPENT_STALE_IF_ERROR_TTL) {
+                                console.warn('Serving stale listunspent cache due to rate limit.');
+                                return resolve(data);
+                            }
+                        }
+                    } catch (e) {}
+                    return reject(new Error('Rate limit exceeded, please try again later'));
+                }
+                setTimeout(() => doFetch(attempt + 1).then(resolve).catch(reject), delay);
+                return;
+            }
+            if (!res.ok) {
+                return reject(new Error(`HTTP ${res.status}`));
+            }
+            const data = await res.json();
+            // cache
+            try { localStorage.setItem(cacheKeyLU(ticker, address), JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+            // reset limiter on success
+            limiter.backoff = 800; limiter.nextAvailableAt = 0; listUnspentLimiter.set(key, limiter);
+            listUnspentGlobalLimiter.backoff = 1000; listUnspentGlobalLimiter.nextAvailableAt = 0;
+            resolve(data);
+        } catch (err) {
+            // Network or other error: try serving stale cache
+            try {
+                const raw = localStorage.getItem(cacheKeyLU(ticker, address));
+                if (raw) {
+                    const { ts, data } = JSON.parse(raw);
+                    if (Date.now() - ts < LISTUNSPENT_STALE_IF_ERROR_TTL) {
+                        console.warn('Serving stale listunspent cache due to network error.');
+                        return resolve(data);
+                    }
+                }
+            } catch (e) {}
+            reject(err);
+        }
+    });
+
+    const promise = doFetch();
+    listUnspentPending.set(key, promise);
+    try {
+        const result = await promise;
+        return result;
+    } finally {
+        listUnspentPending.delete(key);
+    }
+}
+
+// Fire-and-forget helper to import watch-only address once per device for B1T
+export async function importAddressIfNeeded(ticker, address) {
+    try {
+        const key = `addr_imported_${ticker}_${address}`;
+        if (!ticker || !address) return;
+        if (localStorage.getItem(key)) return; // already imported on this device
+        if (String(ticker).toUpperCase() !== 'B1T') return; // backend only supports B1T
+        const res = await fetch(`/api/importaddress/${ticker}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address })
+        });
+        // Mark as imported regardless of response to avoid spamming the endpoint
+        try { localStorage.setItem(key, String(Date.now())); } catch (e) {}
+        return res.ok;
+    } catch (e) {
+        // ignore errors silently; this is a best-effort call
+        return false;
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -518,4 +671,4 @@ function closeInstallPrompt() {
 }
 
 const overlay = document.getElementById('global-loading-overlay-receive');
-if (overlay) overlay.style.display = 'none'; 
+if (overlay) overlay.style.display = 'none';

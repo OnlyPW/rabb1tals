@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, g
 from flask_cors import CORS  # Import Flask-CORS
 from routes.bitcoinRPC import bitcoin_rpc_bp
 from routes.bitcoreLib import bitcore_lib_bp
@@ -8,15 +8,51 @@ from routes.prices import prices_bp
 from routes.task import start_scheduler
 from functools import wraps
 import time
+import json
+
+# NEW: DB logging helper
+from utilitys.logging_db import init_db, log_api
 
 app = Flask(__name__, static_folder='static')
 
 # Enable CORS for all routes
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Initialize database tables on startup
+init_db()
+
 # DDoS protection variables
 request_limit = 100  # Max requests per minute
 request_times = {}
+
+# --- Request/Response timing for API logging ---
+@app.before_request
+def _start_timer():
+    g._start_time = time.time()
+
+@app.after_request
+def _log_response(response):
+    try:
+        start = getattr(g, '_start_time', time.time())
+        duration_ms = int((time.time() - start) * 1000)
+        # Only log JSON bodies up to a small size to avoid heavy writes
+        req_body = None
+        if request.method in ('POST', 'PUT', 'PATCH'):
+            try:
+                req_body = request.get_data(as_text=True)
+            except Exception:
+                req_body = None
+        resp_body = None
+        try:
+            # Avoid huge binary bodies
+            if response.content_type and 'json' in response.content_type:
+                resp_body = response.get_data(as_text=True)
+        except Exception:
+            resp_body = None
+        log_api(request.method, request.path, request.remote_addr or '-', response.status_code, duration_ms, req_body, resp_body)
+    except Exception:
+        pass
+    return response
 
 def ddos_protection(f):
     @wraps(f)
@@ -57,4 +93,7 @@ def shutdown_scheduler(exception=None):
         scheduler.shutdown()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5679, debug=True)
+    # Disable debug and reloader for service usage
+    import os
+    port = int(os.environ.get('PORT', 5679))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)

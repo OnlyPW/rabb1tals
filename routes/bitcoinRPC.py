@@ -5,12 +5,18 @@ import logging
 import time
 from collections import defaultdict
 
+# NEW: DB logging helpers
+from utilitys.logging_db import log_tx_event, log_error
+
 # Create a Blueprint for the Bitcoin RPC routes
 bitcoin_rpc_bp = Blueprint('bitcoin_rpc', __name__)
 
 # Read the RPC configuration file
 config = configparser.ConfigParser()
 config.read('./config/rpc.conf')
+
+# Allow only B1T ticker
+ALLOWED_TICKERS = {'B1T'}
 
 # Configure a logger for address import requests and API calls
 address_logger = logging.getLogger('addressLogger')
@@ -48,24 +54,24 @@ def rate_limit(endpoint, ticker, identifier, window=1, max_requests=1):
 
 def get_rpc_connection(ticker):
     """Get RPC connection for a given ticker."""
-    if ticker not in config:
-        raise ValueError(f"No configuration found for ticker: {ticker}")
-    
-    rpc_user = config[ticker]['rpcuser']
-    rpc_password = config[ticker]['rpcpassword']
-    rpc_host = config[ticker]['rpchost']
-    rpc_port = config[ticker]['rpcport']
-    rpcwallet = config[ticker].get('rpcwallet', '').strip()
+    if ticker.upper() not in ALLOWED_TICKERS:
+        raise ValueError(f"Unsupported ticker: {ticker}. Only B1T is allowed.")
+    if 'B1T' not in config:
+        raise ValueError("No configuration found for ticker: B1T")
+    rpc_user = config['B1T']['rpcuser']
+    rpc_password = config['B1T']['rpcpassword']
+    rpc_host = config['B1T']['rpchost']
+    rpc_port = config['B1T']['rpcport']
+    rpcwallet = config['B1T'].get('rpcwallet', '').strip()
     if rpcwallet:
         rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}/wallet/{rpcwallet}'
     else:
         rpc_url = f'http://{rpc_user}:{rpc_password}@{rpc_host}:{rpc_port}'
-    
     return AuthServiceProxy(rpc_url)
 
 @bitcoin_rpc_bp.route('/listunspent/<ticker>/<address>', methods=['GET'])
 def get_unspent_txs(ticker, address):
-    if not rate_limit('listunspent', ticker, address, window=1, max_requests=1):
+    if not rate_limit('listunspent', ticker, address, window=2, max_requests=3):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching unspent transactions for ticker: {ticker}, address: {address}")
@@ -99,9 +105,17 @@ def send_raw_transaction(ticker):
         rpc_connection = get_rpc_connection(ticker)
         raw_tx = request.json.get('raw_tx')
         txid = rpc_connection.sendrawtransaction(raw_tx)
+        try:
+            log_tx_event(ticker, 'sendrawtransaction', 'ok', txid=txid, raw_tx=raw_tx)
+        except Exception:
+            pass
         return jsonify({'txid': txid})
     except (JSONRPCException, ValueError) as e:
         address_logger.error(f"Error sending raw transaction: {str(e)}")
+        try:
+            log_tx_event(ticker, 'sendrawtransaction', 'fail', raw_tx=request.json.get('raw_tx'), error=str(e))
+        except Exception:
+            pass
         return jsonify({'error': str(e)}), 500
 
 @bitcoin_rpc_bp.route('/getblockchaininfo/<ticker>', methods=['GET'])
@@ -128,7 +142,7 @@ def estimate_smart_fee(ticker, conf_target):
 
 @bitcoin_rpc_bp.route('/getlasttransactions/<ticker>/<address>', methods=['GET'])
 def get_last_transactions(ticker, address):
-    if not rate_limit('getlasttransactions', ticker, address, window=1, max_requests=1):
+    if not rate_limit('getlasttransactions', ticker, address, window=2, max_requests=3):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching last transactions for ticker: {ticker}, address: {address}")
@@ -210,7 +224,7 @@ def import_address(ticker):
 
 @bitcoin_rpc_bp.route('/gettransaction/<ticker>/<txid>', methods=['GET'])
 def get_transaction_details(ticker, txid):
-    if not rate_limit('gettransaction', ticker, txid, window=1, max_requests=1):
+    if not rate_limit('gettransaction', ticker, txid, window=2, max_requests=3):
         return jsonify({"status": "error", "message": "Rate limit exceeded, please try again later"}), 429
 
     address_logger.info(f"Fetching transaction details for ticker: {ticker}, txid: {txid}")
@@ -244,7 +258,6 @@ def get_transaction_details(ticker, txid):
             "blocktime": tx_details.get('blocktime', 0),
             "blockhash": tx_details.get('blockhash', '')
         }
-
         return jsonify({
             "status": "success",
             "data": formatted_tx

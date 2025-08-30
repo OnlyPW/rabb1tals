@@ -1,0 +1,19 @@
+[Unit]
+Description=RC001 Blockchain Scanner (B1T-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/rabb1tals/rc001
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/root/rabb1tals/.venv/bin/python /root/rabb1tals/rc001/rc001indexer.py
+Restart=always
+RestartSec=5
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

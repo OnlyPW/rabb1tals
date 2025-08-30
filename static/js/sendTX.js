@@ -1,5 +1,6 @@
 import { initializeWallet } from './main.js';
 import { coins } from './networks.js'; // Import coins to get the color
+import { importAddressIfNeeded } from './main.js';
 
 /**
  * Converts coin amount to satoshis
@@ -65,6 +66,12 @@ export function sendTXUI(walletData) {
     header.appendChild(backButton);
     landingPage.appendChild(header);
 
+    // Cache the latest UTXOs fetched for this send flow
+    let latestUtxosForSend = [];
+    // Track available balance in satoshis and developer fee rate
+    let availableSats = 0;
+    const DEV_FEE_RATE = 0.002; // 0.2%
+
     // Create title
     const title = document.createElement('h1');
     title.textContent = 'Send Transaction';
@@ -101,18 +108,26 @@ export function sendTXUI(walletData) {
         const start = Date.now();
         balance.innerHTML = '<span class="spinner" style="margin-right:10px;"></span>Loading...';
         try {
+            // Ensure the address is imported (best-effort, only for B1T)
+            await importAddressIfNeeded(walletData.ticker, walletData.address);
+
             const res = await fetch(`/api/listunspent/${walletData.ticker}/${walletData.address}`);
             if (!res.ok) throw new Error('Failed to fetch UTXOs');
             const data = await res.json();
             if (!data.data || !Array.isArray(data.data.txs)) throw new Error('Invalid UTXO data');
             if (requestId !== latestSendBalanceRequest) return;
             const utxos = data.data.txs;
+            // Store for later transaction generation
+            latestUtxosForSend = utxos;
             const total = utxos.reduce((sum, utxo) => sum + (typeof utxo.value === 'number' ? utxo.value : parseFloat(utxo.value) || 0), 0);
+            // also cache available satoshis for suggestions and validation
+            availableSats = Math.max(0, Math.floor(total * 100000000));
             const elapsed = Date.now() - start;
             setTimeout(() => {
                 if (requestId !== latestSendBalanceRequest) return;
                 balance.textContent = `${total.toFixed(8)} ${walletData.ticker}`;
                 hideGlobalLoadingSend();
+                updateSuggestionsAndNet();
             }, Math.max(0, minSpinnerTime - elapsed));
         } catch (e) {
             if (retries > 0) {
@@ -349,6 +364,45 @@ export function sendTXUI(walletData) {
     usdAmountContainer.appendChild(usdAmountInput);
     form.appendChild(usdAmountContainer);
 
+    // ===== Suggestions row and net info =====
+    const suggestionsRow = document.createElement('div');
+    suggestionsRow.style.display = 'flex';
+    suggestionsRow.style.gap = '8px';
+    suggestionsRow.style.marginTop = '6px';
+    suggestionsRow.style.flexWrap = 'wrap';
+
+    const suggestionsLabel = document.createElement('span');
+    suggestionsLabel.textContent = 'Suggestions:';
+    suggestionsLabel.style.opacity = '0.85';
+    suggestionsRow.appendChild(suggestionsLabel);
+
+    function makeSuggBtn() {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'styled-button';
+        b.style.padding = '4px 10px';
+        b.style.fontSize = '0.85rem';
+        b.style.background = '#222';
+        b.style.borderRadius = '10px';
+        return b;
+    }
+
+    const btnMax = makeSuggBtn();
+    const btnHalf = makeSuggBtn();
+    const btnQuarter = makeSuggBtn();
+
+    suggestionsRow.appendChild(btnMax);
+    suggestionsRow.appendChild(btnHalf);
+    suggestionsRow.appendChild(btnQuarter);
+    form.appendChild(suggestionsRow);
+
+    const netInfo = document.createElement('div');
+    netInfo.style.marginTop = '6px';
+    netInfo.style.fontSize = '0.9rem';
+    netInfo.style.lineHeight = '1.3';
+    netInfo.style.opacity = '0.9';
+    form.appendChild(netInfo);
+
     // Fetch prices and set up event listeners
     fetch('/prices/prices')
         .then(response => response.json())
@@ -369,6 +423,7 @@ export function sendTXUI(walletData) {
                 } else {
                     usdAmountInput.value = '';
                 }
+                updateSuggestionsAndNet();
             });
 
             // Update coin amount when USD amount is entered
@@ -380,6 +435,7 @@ export function sendTXUI(walletData) {
                 } else {
                     amountInput.value = '';
                 }
+                updateSuggestionsAndNet();
             });
         })
         .catch(error => {
@@ -421,6 +477,9 @@ export function sendTXUI(walletData) {
 
     feeDisplay.textContent = (defaultFee / 100000000).toFixed(8);
 
+    // Prepare a slider reference in outer scope so handlers can access it
+    let feeSlider = null;
+
     // Add click handler for fee display only if no networkFee is defined
     if (!selectedCoin || !selectedCoin.networkfee) {
         feeDisplay.addEventListener('click', () => {
@@ -442,13 +501,16 @@ export function sendTXUI(walletData) {
                 const newFee = parseFloat(feeInput.value);
                 if (!isNaN(newFee)) {
                     const feeInSats = Math.floor(newFee * 100000000);
-                    // Update slider value within its min/max bounds
-                    feeSlider.value = Math.min(Math.max(feeInSats, feeSlider.min), feeSlider.max);
+                    // Update slider value within its min/max bounds when available
+                    if (feeSlider) {
+                        feeSlider.value = Math.min(Math.max(feeInSats, parseInt(feeSlider.min)), parseInt(feeSlider.max));
+                    }
                     // Display can show any value
                     feeDisplay.textContent = newFee.toFixed(8);
                 }
                 feeInput.remove();
                 feeDisplay.style.display = 'inline';
+                updateSuggestionsAndNet();
             });
             
             // Handle enter key
@@ -467,7 +529,7 @@ export function sendTXUI(walletData) {
 
     // Only create and append slider if no networkFee is defined
     if (!selectedCoin || !selectedCoin.networkfee) {
-        const feeSlider = document.createElement('input');
+        feeSlider = document.createElement('input');
         feeSlider.type = 'range';
         feeSlider.id = 'fee';
         feeSlider.className = 'styled-slider';
@@ -487,6 +549,7 @@ export function sendTXUI(walletData) {
                 feeInput.remove();
                 feeDisplay.style.display = 'inline';
             }
+            updateSuggestionsAndNet();
         });
 
         feeContainer.appendChild(feeSlider);
@@ -536,6 +599,72 @@ export function sendTXUI(walletData) {
         <div id="errorMessage" class="error-message styled-text" style="display: none;"></div>
     `;
 
+    // Helper formatting and computations
+    function toCoins(sats) { return (sats / 100000000).toFixed(8); }
+    function currentFeeSats() {
+        const v = parseFloat(feeDisplay.textContent);
+        return isNaN(v) ? 0 : Math.floor(v * 100000000);
+    }
+    function maxRecipientSatsGivenFee(feeSats) {
+        // Max recipient such that amount + fee + dev(amount) <= available
+        // => (1 + r) * amount <= available - fee
+        const numer = availableSats - (feeSats || 0);
+        if (numer <= 0) return 0;
+        return Math.max(0, Math.floor(numer / (1 + DEV_FEE_RATE)));
+    }
+
+    function updateSuggestionsAndNet() {
+        const feeSats = currentFeeSats();
+        const enteredCoins = parseFloat(amountInput.value);
+        const enteredSats = isNaN(enteredCoins) ? 0 : Math.floor(enteredCoins * 100000000);
+        let recipientSats = 0;
+        if (subtractFeeCheckbox.checked) {
+            recipientSats = Math.floor((enteredSats - feeSats) / (1 + DEV_FEE_RATE));
+        } else {
+            recipientSats = enteredSats;
+        }
+        if (recipientSats < 0) recipientSats = 0;
+        const serverFeeEst = Math.floor(recipientSats * DEV_FEE_RATE);
+        const totalSpend = recipientSats + feeSats + serverFeeEst;
+
+        // Suggestions text and handlers
+        const maxRec = maxRecipientSatsGivenFee(feeSats);
+        const halfRec = Math.floor(maxRec * 0.5);
+        const quarterRec = Math.floor(maxRec * 0.25);
+
+        if (subtractFeeCheckbox.checked) {
+            // In subtract mode, suggestions set the INPUT (gross) so that net to recipient equals the target
+            const s1 = Math.floor(availableSats); // use-all gross
+            const s2 = Math.floor(availableSats * 0.5);
+            const s3 = Math.floor(availableSats * 0.25);
+            btnMax.textContent = `Max (${toCoins(Math.floor((s1 - feeSats) / (1 + DEV_FEE_RATE)))})`;
+            btnHalf.textContent = `50% (${toCoins(Math.floor((s2 - feeSats) / (1 + DEV_FEE_RATE)))})`;
+            btnQuarter.textContent = `25% (${toCoins(Math.floor((s3 - feeSats) / (1 + DEV_FEE_RATE)))})`;
+            btnMax.onclick = () => { amountInput.value = toCoins(s1); updateSuggestionsAndNet(); };
+            btnHalf.onclick = () => { amountInput.value = toCoins(s2); updateSuggestionsAndNet(); };
+            btnQuarter.onclick = () => { amountInput.value = toCoins(s3); updateSuggestionsAndNet(); };
+        } else {
+            // In normal mode, suggestions directly set recipient amount
+            btnMax.textContent = `Max (${toCoins(maxRec)})`;
+            btnHalf.textContent = `50% (${toCoins(halfRec)})`;
+            btnQuarter.textContent = `25% (${toCoins(quarterRec)})`;
+            btnMax.onclick = () => { amountInput.value = toCoins(maxRec); updateSuggestionsAndNet(); };
+            btnHalf.onclick = () => { amountInput.value = toCoins(halfRec); updateSuggestionsAndNet(); };
+            btnQuarter.onclick = () => { amountInput.value = toCoins(quarterRec); updateSuggestionsAndNet(); };
+        }
+
+        // Net info preview (English + Server fee)
+        netInfo.innerHTML = `Net to recipient: <b>${toCoins(recipientSats)} ${walletData.ticker}</b><br>` +
+            `Server fee (0.2%): ${toCoins(serverFeeEst)} ${walletData.ticker}<br>` +
+            `Total spend: ${toCoins(totalSpend)} ${walletData.ticker} · Available: ${toCoins(availableSats)} ${walletData.ticker}`;
+    }
+
+    // Recompute when checkbox toggles
+    subtractFeeCheckbox.addEventListener('change', updateSuggestionsAndNet);
+
+    // Append the entire fee container to the form (already done above)
+
+    // Create submit button handler
     // Add form submission handler
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -569,24 +698,78 @@ export function sendTXUI(walletData) {
                 throw new Error(`Fee must not exceed ${(networkFeeMax / 100000000).toFixed(8)} ${walletData.ticker}`);
             }
 
-            // Filter out UTXOs less than or equal to 0.01
+            // Filter out UTXOs less than or equal to 0.01 FROM THE LATEST FETCHED SET
+            // Ensure we have a fresh UTXO set before proceeding
+            if (!latestUtxosForSend || latestUtxosForSend.length === 0) {
+            try {
+                const res = await fetch(`/api/listunspent/${walletData.ticker}/${walletData.address}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.data && Array.isArray(data.data.txs)) {
+                        latestUtxosForSend = data.data.txs;
+                        const total = latestUtxosForSend.reduce((sum, u) => sum + (typeof u.value === 'number' ? u.value : parseFloat(u.value) || 0), 0);
+                        availableSats = Math.max(0, Math.floor(total * 100000000));
+                    }
+                }
+            } catch (_) { /* ignore and use whatever we have */ }
+            }
             const filteredWalletData = {
                 ...walletData,
-                utxos: walletData.utxos.filter(utxo => utxo.value > 0.01)
+                // Use all fetched UTXOs; let the backend select appropriately
+                utxos: (latestUtxosForSend || [])
             };
 
+            // Compute effective available sats from the UTXOs that we will actually use (all fetched)
+            const effectiveAvailableSats = Math.max(0, Math.floor(((filteredWalletData.utxos || []).reduce((sum, u) => sum + (typeof u.value === 'number' ? u.value : parseFloat(u.value) || 0), 0)) * 100000000));
+
             // Convert amount to satoshis
-            let amountInSats = toSatoshis(amountInputValue);
+            const enteredSats = toSatoshis(amountInputValue);
+            let amountInSats = enteredSats;
             
-            // If subtract fee is checked, reduce the amount by the fee
+            // If subtract fee is checked, reduce the amount by the fee AND server fee (0.2%)
             if (subtractFee) {
-                amountInSats -= feeInSats;
+                // Clamp gross entered to available first
+                if (enteredSats > effectiveAvailableSats) {
+                    amountInput.value = toCoins(effectiveAvailableSats);
+                    updateSuggestionsAndNet();
+                    errorDiv.textContent = `Insufficient funds. I've set the total spend to your available balance. Please review and press Send again.`;
+                    errorDiv.style.display = 'block';
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Send';
+                    return;
+                }
+                amountInSats = Math.floor((enteredSats - feeInSats) / (1 + DEV_FEE_RATE));
                 if (amountInSats <= 0) {
-                    throw new Error('Amount after fee subtraction must be greater than 0');
+                    errorDiv.textContent = 'Amount after subtracting network fee and server fee must be greater than 0.';
+                    errorDiv.style.display = 'block';
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Send';
+                    return;
                 }
             }
             
-            console.log(`Converting ${amountInputValue} ${walletData.ticker} to ${amountInSats} satoshis${subtractFee ? ' (fee subtracted)' : ''}`);
+            // Local sufficiency check using effectiveAvailableSats only
+            const serverFeeEst = Math.floor(amountInSats * DEV_FEE_RATE);
+            const required = amountInSats + feeInSats + serverFeeEst;
+            if (required > effectiveAvailableSats) {
+                const maxRec = Math.max(0, Math.floor((Math.max(0, effectiveAvailableSats - feeInSats)) / (1 + DEV_FEE_RATE)));
+                // Auto-adjust UI to the maximum spendable and require user confirmation
+                if (subtractFee) {
+                    // In subtract mode, the input represents gross spend; set it to available
+                    amountInput.value = toCoins(effectiveAvailableSats);
+                } else {
+                    // In normal mode, set amount to max recipient
+                    amountInput.value = toCoins(maxRec);
+                }
+                updateSuggestionsAndNet();
+                errorDiv.textContent = `Insufficient funds. I've set the ${subtractFee ? 'total spend' : 'amount'} to the maximum spendable given the current network fee and server fee. Please review and press Send again.`;
+                errorDiv.style.display = 'block';
+                submitButton.disabled = false;
+                submitButton.textContent = 'Send';
+                return;
+            }
+            
+            console.log(`Converting ${amountInputValue} ${walletData.ticker} to ${amountInSats} satoshis${subtractFee ? ' (fee & server fee subtracted)' : ''}`);
 
             // Generate the transaction with filtered UTXOs
             const generateResponse = await fetch('/bitcore_lib/generate-tx', {
@@ -605,7 +788,9 @@ export function sendTXUI(walletData) {
             const generateResult = await generateResponse.json();
 
             if (!generateResponse.ok) {
-                throw new Error(generateResult.error || 'Failed to generate transaction');
+                // Surface detailed error information when available
+                const details = generateResult.details ? `: ${generateResult.details}` : '';
+                throw new Error((generateResult.error || 'Failed to generate transaction') + details);
             }
 
             // Broadcast the transaction
@@ -653,6 +838,9 @@ export function sendTXUI(walletData) {
         }, 2000);
     });
 
+    // Recompute suggestions when fee or amount context changes initially
+    setTimeout(updateSuggestionsAndNet, 0);
+
     // Add this helper function at the end of the file
     function playScanChime() {
         // Use a simple oscillator for a chime sound
@@ -671,4 +859,4 @@ export function sendTXUI(walletData) {
             o.onended = () => ctx.close();
         } catch (e) { /* ignore errors */ }
     }
-} 
+}

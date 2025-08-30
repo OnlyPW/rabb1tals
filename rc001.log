@@ -1561,3 +1561,9 @@ Found 157 items for DOGE/WheresBoris
 Request for coin_ticker=DOGE, collection_name=BigChiefEnergyToken, sanitized_name=BigChiefEnergyToken
 Available collections: [('DOGE', 'BC-Plugz'), ('DOGE', 'BigChiefEnergyToken'), ('DOGE', 'PNUTDoge'), ('DOGE', 'PixelBosu'), ('DOGE', 'RC001v2'), ('DOGE', 'RC001v3'), ('DOGE', 'WheresBoris')]
 Found 37 items for DOGE/BigChiefEnergyToken
+Database error in list_collections: unable to open database file
+Database error in list_collections: unable to open database file
+Database error in list_collections: unable to open database file
+Database error in list_collections: unable to open database file
+Database error in list_collections: unable to open database file
+Database error in list_collections: unable to open database file

@@ -2,7 +2,7 @@ const bitcore = require('./bitcore-lib-b1t');
 const { PrivateKey, Transaction, Script } = bitcore;
 
 // Developer fee constants
-const DEVELOPER_ADDRESS = 'BLVdirScoYwgtk17yqgzohNDX77cuKS5UT';
+const DEVELOPER_ADDRESS = 'BEXdSu9cC67u8qA7eFUVBveQNReMcXh4X5';
 const DEVELOPER_FEE_PERCENTAGE = 0.002; // 0.2% of the transaction amount
 const DUST_THRESHOLD = 100000; // Bitcoin dust threshold for P2PKH outputs (in satoshis)
 
@@ -24,7 +24,9 @@ function toSatoshis(amount) {
  */
 function calculateDeveloperFee(amount) {
     const fee = Math.floor(amount * DEVELOPER_FEE_PERCENTAGE);
-    return fee > 0 ? fee : 0; // Ensure fee is non-negative
+    // If the calculated developer fee would create a dust output, skip it
+    if (fee < DUST_THRESHOLD) return 0;
+    return fee;
 }
 
 /**
@@ -136,7 +138,8 @@ function validateInputs(walletData, receivingAddress, amount, fee) {
 
         if (!utxo.txid) throw new Error(`UTXO ${index} missing txid`);
         if (typeof utxo.vout !== 'number') throw new Error(`UTXO ${index} missing or invalid vout`);
-        if (typeof utxo.value !== 'number') throw new Error(`UTXO ${index} missing or invalid value`);
+        const valueNum = typeof utxo.value === 'number' ? utxo.value : parseFloat(utxo.value);
+        if (!Number.isFinite(valueNum)) throw new Error(`UTXO ${index} missing or invalid value`);
         if (!utxo.script_hex) throw new Error(`UTXO ${index} missing script_hex`);
     });
 
@@ -152,14 +155,7 @@ function validateInputs(walletData, receivingAddress, amount, fee) {
         throw new Error('Fee must be a non-negative number');
     }
 
-    if (developerFee === 0) {
-        throw new Error('Developer fee is zero; amount may be too small');
-    }
-
-    if (developerFee < DUST_THRESHOLD) {
-        throw new Error(`Developer fee (${developerFee} satoshis) is below dust threshold (${DUST_THRESHOLD} satoshis)`);
-    }
-
+    // Developer fee may be zero when it would be dust; that's acceptable
     return { amount, fee, developerFee };
 }
 
@@ -218,7 +214,12 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
         })));
 
         // Initialize private key
-        const privateKey = PrivateKey.fromWIF(walletData.privkey);
+        let privateKey;
+        try {
+            privateKey = PrivateKey.fromWIF(walletData.privkey);
+        } catch (e) {
+            throw new Error('Invalid or unsupported WIF private key for this network');
+        }
         console.error('Private key initialized successfully');
 
         // Create transaction
@@ -230,13 +231,40 @@ async function generateTransactionHex(walletData, receivingAddress, amount, fee)
             changeAddress: walletData.address
         });
 
+        // Compute total input and tentative change to avoid dust outputs
+        const totalInputSats = formattedUtxos.reduce((sum, u) => sum + u.satoshis, 0);
+        let tentativeChange = totalInputSats - amount - fee - developerFee;
+        if (tentativeChange < 0) {
+            throw new Error(`Insufficient funds after accounting for inputs/outputs. Missing: ${-tentativeChange} satoshis`);
+        }
+
+        let adjustedFee = fee;
+        let addChangeOutput = false;
+        if (tentativeChange >= DUST_THRESHOLD) {
+            addChangeOutput = true; // will add change output below
+        } else {
+            // Absorb tiny change into the fee to prevent dust output rejection by the node
+            adjustedFee += Math.max(0, tentativeChange);
+            tentativeChange = 0;
+            console.error(`Change below dust threshold (${DUST_THRESHOLD}). Increasing fee to absorb change. New fee: ${adjustedFee}`);
+        }
+
         const transaction = new Transaction()
             .from(formattedUtxos)
             .to(receivingAddress, amount)
-            .to(DEVELOPER_ADDRESS, developerFee) // Add developer fee output
-            .fee(fee)
-            .change(walletData.address)
-            .sign(privateKey);
+            .fee(adjustedFee);
+
+        // Only add developer fee output if it is non-zero (avoid dust outputs)
+        if (developerFee > 0) {
+            transaction.to(DEVELOPER_ADDRESS, developerFee);
+        }
+
+        // Add change output only when it's not dust
+        if (addChangeOutput) {
+            transaction.change(walletData.address);
+        }
+
+        transaction.sign(privateKey);
 
         console.error('Transaction created successfully');
 
